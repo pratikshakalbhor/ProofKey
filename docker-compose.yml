@@ -1,0 +1,77 @@
+# VeriShield local Midnight devnet.
+#
+# Mirrors the official `standalone.yml` from midnightntwrk/midnight-local-dev.
+# The proof server port (6300) is hardcoded by Midnight wallets for the
+# `undeployed` network, so do not change it.
+#
+#   docker compose up -d        # start node + indexer + proof server
+#   docker compose ps           # status / health
+#   docker compose logs -f      # tail logs
+#   docker compose down         # stop (add -v to wipe the chain)
+#
+# Endpoints (see docs.midnight.network/guides/midnight-local-network):
+#   node          http://localhost:9944
+#   indexer       http://localhost:8088/api/v4/graphql
+#   indexer (ws)  ws://localhost:8088/api/v4/graphql/ws
+#   proof server  http://localhost:6300
+
+name: verishield-devnet
+
+services:
+  node:
+    image: midnightntwrk/midnight-node:0.22.3
+    container_name: midnight-node
+    restart: unless-stopped
+    ports:
+      - "9944:9944"
+    volumes:
+      - node_data:/node
+    environment:
+      SHOW_CONFIG: "false"
+      CFG_PRESET: "dev"
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9944/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  # The proof server handles all private witness data locally and never opens
+  # outbound connections. It must match the contract's ledger version.
+  proof-server:
+    image: midnightntwrk/proof-server:8.0.3
+    container_name: midnight-proof-server
+    restart: unless-stopped
+    ports:
+      - "6300:6300"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:6300/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  indexer:
+    image: midnightntwrk/indexer-standalone:4.0.1
+    container_name: midnight-indexer
+    restart: unless-stopped
+    depends_on:
+      node:
+        condition: service_healthy
+    ports:
+      - "8088:8088"
+    environment:
+      RUST_LOG: "info"
+      APP__INFRA__SECRET: "303132333435363738393031323334353637383930313233343536373839303132"
+      APP__INFRA__NODE__URL: "ws://node:9944"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8088/api/v4/graphql >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+
+volumes:
+  node_data:
