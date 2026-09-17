@@ -1,0 +1,32 @@
+{
+  "name": "@verishield/shared",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./sdk": {
+      "types": "./src/sdk.ts",
+      "default": "./src/sdk.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "test:e2e-crypto": "tsx scripts/e2e-crypto.ts"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-runtime": "0.19.0",
+    "@verishield/contracts": "workspace:*",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
