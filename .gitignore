@@ -5,6 +5,7 @@ dist
 *.tsbuildinfo
 .vercel
 .midnight-state.json
+.midnight-wallet-state/
 
 # Local issuer-api SQLite database (contains seeded hashed credentials + salts).
 packages/issuer-api/data/
@@ -16,3 +17,8 @@ packages/issuer-api/data/
 # typechecks and the simulator e2e runs without the Compact toolchain; ignore
 # the large proving keys (regenerate with `pnpm compile:contracts`).
 packages/contracts/managed/*/keys/
+
+# Root tooling state produced by pnpm setup / deploy / cli (devnet deploy
+# reports, local wallet seed material, generated manifests). Never committed.
+/managed/
+.midnight-wallet-state/

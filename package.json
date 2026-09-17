@@ -10,6 +10,13 @@
     "dev:issuer": "pnpm --filter issuer-api dev",
     "compile:contracts": "pnpm --filter @verishield/contracts compile",
     "test:e2e-crypto": "pnpm --filter @verishield/shared test:e2e-crypto",
+    "setup": "tsx src/setup.ts",
+    "compile": "pnpm compile:contracts",
+    "deploy": "tsx src/deploy.ts",
+    "network": "tsx src/network.ts",
+    "test": "vitest run",
+    "cli": "tsx src/cli.ts",
+    "frontend": "pnpm --filter web dev",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "pnpm -r typecheck"
@@ -19,9 +26,13 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@verishield/contracts": "workspace:*",
+    "@verishield/shared": "workspace:*",
     "eslint": "^10.10.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.12.0",
-    "typescript-eslint": "^8.70.0"
+    "tsx": "^4.23.0",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^3.2.0"
   }
 }
