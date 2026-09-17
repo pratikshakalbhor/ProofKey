@@ -1,0 +1,18 @@
+{
+  "name": "verishield",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@12.4.2",
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter @verishield/shared build && pnpm --filter issuer-api build && pnpm --filter web build",
+    "dev:issuer": "pnpm --filter issuer-api dev",
+    "compile:contracts": "pnpm --filter @verishield/contracts compile",
+    "test:e2e-crypto": "pnpm --filter @verishield/shared test:e2e-crypto",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -1,0 +1,18 @@
+node_modules
+dist
+.env
+.env.local
+*.tsbuildinfo
+.vercel
+.midnight-state.json
+
+# Local issuer-api SQLite database (contains seeded hashed credentials + salts).
+packages/issuer-api/data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Compact build output: keep the generated TS bindings (contract/) so the repo
+# typechecks and the simulator e2e runs without the Compact toolchain; ignore
+# the large proving keys (regenerate with `pnpm compile:contracts`).
+packages/contracts/managed/*/keys/
