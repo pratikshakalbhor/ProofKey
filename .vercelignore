@@ -1,0 +1,17 @@
+.git
+.github
+node_modules
+packages/web/node_modules
+packages/contracts/node_modules
+packages/shared/node_modules
+packages/issuer-api/node_modules
+packages/issuer-api/dist
+packages/shared/dist
+packages/web/dist
+packages/contracts/managed/*/keys
+managed
+.midnight-wallet-state
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+tests
