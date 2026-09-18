@@ -1,77 +1,106 @@
-# VeriShield local Midnight devnet.
+# VeriShield current-era (ledger-9) local Midnight devnet.
 #
-# Mirrors the official `standalone.yml` from midnightntwrk/midnight-local-dev.
-# The proof server port (6300) is hardcoded by Midnight wallets for the
-# `undeployed` network, so do not change it.
+# Image tags are the official SDK devnet trio (midnightntwrk/midnight-js →
+# testkit-js/env/devnet.env at the 5.0.0-beta.8 / 2.1.0-beta.1 generation):
+#   proof-server 9.0.0-rc.7 | indexer-standalone 4.4.0-rc.2 | midnight-node 2.1.0-beta.1
 #
 #   docker compose up -d        # start node + indexer + proof server
 #   docker compose ps           # status / health
 #   docker compose logs -f      # tail logs
-#   docker compose down         # stop (add -v to wipe the chain)
+#   docker compose down         # stop: fresh chain next start, SRS cache kept
+#   docker compose down -v      # stop AND wipe the SRS cache (cold re-download)
 #
-# Endpoints (see docs.midnight.network/guides/midnight-local-network):
+# Note: no service stores chain state on a volume, so `down` (without -v) is
+# already a fresh chain each start. The only named volume is the proof server's
+# SRS/ZK parameter cache — preserved by `down`, wiped by `down -v`.
+#
+# Endpoints (see README “Optional — local Midnight devnet”):
 #   node          http://localhost:9944
 #   indexer       http://localhost:8088/api/v4/graphql
 #   indexer (ws)  ws://localhost:8088/api/v4/graphql/ws
 #   proof server  http://localhost:6300
+#
+# NOTE — indexer read-path limitation (documented in README “Known Simulations”):
+# the public indexer build 4.4.0-rc.2 does not re-apply the dust spend of our
+# contract deploy, so once a real deploy lands the indexer exits (restart: always
+# keeps the process up; chain-indexer apply keeps failing). The SDK's CI pairing
+# uses indiceser 4.4.0-rc.5 which fixes this, but it is published only on a private
+# GHCR registry (503 unauthorized). `pnpm deploy` therefore submits via
+# submitTxAsync, which does not depend on indexer reads.
 
 name: verishield-devnet
 
 services:
   node:
-    image: midnightntwrk/midnight-node:0.22.3
+    image: midnightntwrk/midnight-node:2.1.0-beta.1
     container_name: midnight-node
     restart: unless-stopped
     ports:
       - "9944:9944"
-    volumes:
-      - node_data:/node
     environment:
-      SHOW_CONFIG: "false"
       CFG_PRESET: "dev"
-    security_opt:
-      - no-new-privileges:true
+      SIDECHAIN_BLOCK_BENEFICIARY: "04bcf7ad3be7a5c790460be82a713af570f22e0f801f6659ab8e84a52be6969e"
+    # Gate health on block #1 existing (not just /health): the indexer's spo-indexer
+    # resolves block #1 on startup and dies with "block number 1 not found" if it
+    # catches the node still at genesis.
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9944/health >/dev/null 2>&1 || exit 1"]
-      interval: 10s
+      test:
+        - "CMD-SHELL"
+        - 'curl -sf -X POST -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"chain_getBlockHash\",\"params\":[1]}" http://localhost:9944 | grep -q "\"result\":\"0x"'
+      interval: 5s
       timeout: 5s
-      retries: 20
-      start_period: 30s
+      retries: 40
+      start_period: 15s
 
   # The proof server handles all private witness data locally and never opens
-  # outbound connections. It must match the contract's ledger version.
+  # outbound connections. It must match the contract's ledger version (9).
+  #
+  # No healthcheck: the upstream image is a single static binary with no shell
+  # or `curl`/`wget` on PATH, so Docker cannot exec an in-container probe (a
+  # `curl` healthcheck reports a permanent false "unhealthy"). `docker compose
+  # ps` shows it as plain "Up"; the deploy tool probes http://…:6300/version
+  # itself before submitting (`connectDeployWallet`), so readiness is still
+  # checked exactly where it matters.
   proof-server:
-    image: midnightntwrk/proof-server:8.0.3
+    image: midnightntwrk/proof-server:9.0.0-rc.7
     container_name: midnight-proof-server
     restart: unless-stopped
     ports:
       - "6300:6300"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:6300/health >/dev/null 2>&1 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-      start_period: 20s
+    # The proof server downloads the SRS/ZK parameters (~hundreds of MB) from
+    # https://srs.midnight.network on first use and caches them under
+    # /.cache/midnight. Without this volume that cache lives in the container's
+    # writable layer and is re-downloaded on every container recreation.
+    volumes:
+      - verishield-proof-cache:/.cache/midnight
 
   indexer:
-    image: midnightntwrk/indexer-standalone:4.0.1
+    image: midnightntwrk/indexer-standalone:4.4.0-rc.2
     container_name: midnight-indexer
-    restart: unless-stopped
+    restart: always
     depends_on:
       node:
         condition: service_healthy
     ports:
       - "8088:8088"
     environment:
-      RUST_LOG: "info"
-      APP__INFRA__SECRET: "303132333435363738393031323334353637383930313233343536373839303132"
+      RUST_LOG: "indexer=info,chain_indexer=info,indexer_api=info,wallet_indexer=info,indexer_common=info,fastrace_opentelemetry=off,info"
       APP__INFRA__NODE__URL: "ws://node:9944"
+      APP__APPLICATION__NETWORK_ID: "undeployed"
+      APP__INFRA__STORAGE__PASSWORD: "indexer"
+      APP__INFRA__PUB_SUB__PASSWORD: "indexer"
+      APP__INFRA__LEDGER_STATE_STORAGE__PASSWORD: "indexer"
+      APP__INFRA__SECRET: "303132333435363738393031323334353637383930313233343536373839303132"
+      APP__INFRA__SPO_NODE__URL: "ws://node:9944"
+      APP__INFRA__SPO_NODE__BLOCKFROST_ID: "dummy-not-using-spo"
+      APP__INFRA__SPO_NODE__RECONNECT_MAX_DELAY: "24h"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8088/api/v4/graphql >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "cat /var/run/indexer-standalone/running"]
       interval: 10s
       timeout: 5s
       retries: 20
-      start_period: 40s
+      start_period: 10s
 
 volumes:
-  node_data:
+  # Proof-server SRS/ZK parameter cache (see proof-server service comment).
+  verishield-proof-cache:
