@@ -9,3 +9,10 @@ allowBuilds:
   '@scarf/scarf': false
   better-sqlite3: true
   esbuild: true
+  # Build scripts present in the Midnight SDK transitive graph. Skipped: their
+  # postinstall steps are optional native bindings; the SDK runs fine without them.
+  classic-level: false
+  cpu-features: false
+  msgpackr-extract: false
+  protobufjs: false
+  ssh2: false

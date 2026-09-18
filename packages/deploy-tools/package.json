@@ -1,0 +1,27 @@
+{
+  "name": "@verishield/deploy-tools",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@midnight-ntwrk/compact-js": "2.5.5-rc.8",
+    "@midnight-ntwrk/compact-runtime": "0.19.0",
+    "@midnight-ntwrk/midnight-js-contracts": "5.0.0-beta.8",
+    "@midnight-ntwrk/midnight-js-network-id": "5.0.0-beta.8",
+    "@midnight-ntwrk/testkit-js": "5.0.0-beta.8",
+    "@verishield/contracts": "workspace:*",
+    "@verishield/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

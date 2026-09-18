@@ -27,6 +27,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@verishield/contracts": "workspace:*",
+    "@verishield/deploy-tools": "workspace:*",
     "@verishield/shared": "workspace:*",
     "eslint": "^10.10.0",
     "eslint-plugin-react-hooks": "^7.1.1",
