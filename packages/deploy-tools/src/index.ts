@@ -148,6 +148,17 @@ async function waitForDust(
 }
 
 /**
+ * Resolve a positive-integer timeout override from env (ms), falling back to
+ * `fallback`. Invalid or unset values silently fall back — a bad override must
+ * not hard-fail the readiness probe.
+ */
+function timeoutFromEnv(raw: string | undefined, fallback: number): number {
+  if (raw === undefined) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+/**
  * Wait for the devnet services, then start the real wallet used to submit
  * on-chain deploys.
  *
@@ -159,13 +170,19 @@ export async function connectDeployWallet(
   target: DeployTarget,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<DeployWallet> {
+  const readinessTimeoutMs = timeoutFromEnv(env.MIDNIGHT_DEPLOY_READINESS_TIMEOUT_MS, 300_000);
   const wait = Promise.all([
-    waitForEndpoint('devnet node', target.nodeUrl, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'system_chain', params: [] }),
-    }),
-    waitForEndpoint('proof server', `${target.proofServerUrl}/version`),
+    waitForEndpoint(
+      'devnet node',
+      target.nodeUrl,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'system_chain', params: [] }),
+      },
+      readinessTimeoutMs,
+    ),
+    waitForEndpoint('proof server', `${target.proofServerUrl}/version`, {}, readinessTimeoutMs),
   ]);
   try {
     await wait;

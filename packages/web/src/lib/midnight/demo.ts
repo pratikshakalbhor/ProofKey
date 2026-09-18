@@ -171,7 +171,10 @@ function createEngine(vs: VeriShield, issuer: DemoIssuerInfo): DemoEngine {
 
 async function bootstrap(): Promise<DemoEngine> {
   const sdk = await loadVeriShieldSdk();
-  const vs = await sdk.createVeriShield();
+  const configured = import.meta.env?.VITE_CONTRACT_ADDRESS?.trim();
+  const vs = await sdk.createVeriShield(
+    configured && configured.length > 0 ? { contractAddress: configured } : {},
+  );
 
   const { issuerId, verifyingKey } = await vs.registerIssuer({
     issuerName: DEMO_ISSUER_NAME,

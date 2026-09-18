@@ -29,6 +29,7 @@
     "@verishield/contracts": "workspace:*",
     "@verishield/deploy-tools": "workspace:*",
     "@verishield/shared": "workspace:*",
+    "dotenv": "^16.4.5",
     "eslint": "^10.10.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.12.0",

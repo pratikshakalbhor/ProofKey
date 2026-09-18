@@ -178,6 +178,9 @@ importers:
       '@verishield/shared':
         specifier: workspace:*
         version: link:packages/shared
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
       eslint:
         specifier: ^10.10.0
         version: 10.10.0(jiti@1.21.7)

@@ -12,6 +12,8 @@ const WASM_PACKAGES = [
 
 export default defineConfig({
   plugins: [react(), wasm()],
+  // Load .env from the repo root (single source of truth for all VITE_ vars).
+  envDir: resolve(__dirname, '../..'),
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),

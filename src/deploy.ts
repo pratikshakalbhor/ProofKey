@@ -19,6 +19,7 @@
  * can only run once the v9 fork activates there. No manifest is written.
  */
 
+import 'dotenv/config';
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';

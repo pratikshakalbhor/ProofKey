@@ -14,6 +14,7 @@
  * `issue` can be proven by a later `prove` invocation.
  */
 
+import 'dotenv/config';
 import { writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
