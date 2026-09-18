@@ -14,6 +14,8 @@
  * point at a private node/indexer without code changes.
  */
 
+import { resolve } from 'node:path';
+
 export const NETWORK_TYPES = ['local', 'preprod'] as const;
 
 export type NetworkType = (typeof NETWORK_TYPES)[number];
@@ -93,6 +95,50 @@ export function getNetworkConfig(env: EnvLike = process.env): NetworkConfig {
   };
 }
 
+/**
+ * Midnight protocol hard-fork boundary (ledger v8 → v9). Nodes report their
+ * `specVersion` via `state_getRuntimeVersion`. Preprod/Preview are still
+ * pre-fork (`specVersion 1000000`); a v9-compiled contract cannot be deployed
+ * there until the fork activates (`specVersion >= 2000000`). The hard fork was
+ * only staged (not enacted) on 2026-08-21 — see README "Known Simulations".
+ */
+export const LEDGER9_FORK_SPEC_VERSION = 2_000_000;
+
+/** Reads the node's `state_getRuntimeVersion.specVersion`, or `undefined` when unreachable. */
+export async function fetchSpecVersion(nodeUrl: string): Promise<number | undefined> {
+  try {
+    const res = await fetch(nodeUrl, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'state_getRuntimeVersion', params: [] }),
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return undefined;
+    const json = (await res.json()) as { result?: { specVersion?: number } };
+    return json.result?.specVersion;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Midnight providers environment object (the shape `FluentWalletBuilder` /
+ * `initializeMidnightProviders` from `@midnight-ntwrk/testkit-js` expect),
+ * derived from a {@link NetworkConfig}.
+ */
+export function midnightProvidersEnv(config: NetworkConfig): Record<string, string> {
+  return {
+    walletNetworkId: 'undeployed',
+    networkId: 'undeployed',
+    indexer: config.indexerUrl,
+    indexerWS: config.indexerWsUrl,
+    node: config.nodeUrl,
+    nodeWS: config.nodeWsUrl,
+    proofServer: config.proofServerUrl,
+    faucet: config.nodeUrl,
+  };
+}
+
 export function describeNetwork(config: NetworkConfig): string {
   return [
     `  target          ${config.label} (${config.networkId})`,
@@ -131,6 +177,5 @@ if (isMain(import.meta.url)) {
 }
 
 function isMain(moduleUrl: string): boolean {
-  const url = new URL(moduleUrl);
-  return url.pathname === new URL(`file://${process.argv[1]}`).pathname;
+  return resolve(process.argv[1] ?? '') === decodeURIComponent(new URL(moduleUrl).pathname);
 }

@@ -130,7 +130,7 @@ async function cmdNetwork(): Promise<void> {
   const config = getNetworkConfig(process.env);
   const wallet = await connectWallet();
   console.log(describeNetwork(config));
-  console.log(`  contract address   ${contractAddressFor(config, wallet.address)}`);
+  console.log(`  simulator anchor    ${contractAddressFor(config, wallet.address)} (in-memory ledger, not an on-chain address)`);
   console.log(`  wallet address     ${wallet.address}`);
 }
 
@@ -227,7 +227,7 @@ async function cmdDemo(): Promise<void> {
   await prepareSchema(vs, wallet, schemaName);
 
   console.log(`VeriShield demo — ${config.label} (simulator)`);
-  console.log(`  contract address  ${contractAddressFor(config, wallet.address)}`);
+  console.log(`  simulator anchor   ${contractAddressFor(config, wallet.address)} (in-memory ledger, not an on-chain address)`);
 
   const credential = await vs.issueCredential(
     {
@@ -272,7 +272,7 @@ async function cmdDemo(): Promise<void> {
   console.log(`    issuanceRoot       ${summary.issuanceRoot.slice(0, 24)}…`);
   console.log(`    revocationRoot     ${summary.revocationRoot.slice(0, 24)}…`);
 
-  console.log('\nDemo complete. Preprod/live on-chain deploys need a funded wallet — see pnpm deploy.');
+  console.log('\nDemo complete. Preprod/live on-chain deploys need a funded wallet — see pnpm run deploy.');
 }
 
 function printDisclosure(credential: BuiltCredential): void {

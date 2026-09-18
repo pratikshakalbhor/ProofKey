@@ -75,10 +75,10 @@ export async function runSetup(): Promise<void> {
   console.log('  docker compose up -d    # local devnet (node + indexer + proof server)');
   console.log('  pnpm compile:contracts  # regenerate contract artifacts');
   console.log('  pnpm test               # credential-registry vitest suite');
-  console.log('  pnpm deploy             # deploy the registry (local devnet)');
+  console.log('  pnpm run deploy         # deploy the registry (local devnet)');
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === new URL(import.meta.url).pathname) {
+if (resolve(process.argv[1] ?? '') === decodeURIComponent(new URL(import.meta.url).pathname)) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;

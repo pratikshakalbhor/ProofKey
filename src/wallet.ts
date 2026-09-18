@@ -19,7 +19,6 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import {
   hashLabel,
@@ -122,8 +121,10 @@ async function main(): Promise<void> {
   await disconnectWallet(wallet);
 }
 
-const entry = fileURLToPath(import.meta.url);
-if (entry === process.argv[1]) {
+function isMain(moduleUrl: string): boolean {
+  return resolve(process.argv[1] ?? '') === decodeURIComponent(new URL(moduleUrl).pathname);
+}
+if (isMain(import.meta.url)) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;
