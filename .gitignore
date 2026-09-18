@@ -22,3 +22,6 @@ packages/contracts/managed/*/keys/
 # reports, local wallet seed material, generated manifests). Never committed.
 /managed/
 .midnight-wallet-state/
+
+# Test-run logs produced by the local devnet/e2e harness.
+logs/

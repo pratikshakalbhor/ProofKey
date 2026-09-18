@@ -1,0 +1,32 @@
+{
+  "generatedAt": "2026-09-18T17:19:00Z",
+  "chain": {
+    "networkId": "undeployed",
+    "chainName": "undeployed1",
+    "nodeImage": "midnightntwrk/midnight-node:2.1.0-beta.1",
+    "proofServerImage": "midnightntwrk/proof-server:9.0.0-rc.7",
+    "indexerImage": "midnightntwrk/indexer-standalone:4.4.0-rc.2",
+    "ledgerVersion": "1.0.0 (tag: ledger-9.1.0.0-rc.4, rev: cd652d7f97b34b805bb5f0310ce7434eb883af38)",
+    "specVersion": 2001000
+  },
+  "deployCommand": "pnpm run deploy --network=local",
+  "deployRunNote": "Final recorded run: deployed from a fresh local devnet (docker compose down -> up -d) on a clean clone of the repo (/home/hp/vs-clean) with the deploy-tools + proof-cache fixes in place; rc=0, 49s. Earlier passes in the same test round: 4275df02…, fe72b80a…, f3076235… (see test report).",
+  "contractAddress": "b72da755eea42269a7d21853c42e2c3b630f78fec8d3712d93b4a4bb66e08499",
+  "deployTxId": "00f94fa655f54367ff39e5aba2f48e80af03f62753a09a57171a374006415549c4",
+  "onChain": {
+    "note": "deployTxId is the SDK transaction identifier returned by submitTxAsync (and written to managed/deploy/local.json). The node/applied extrinsic hash of the same submission differs; both are recorded so the inclusion can be independently checked.",
+    "appliedExtrinsicHash": "576f8749e906dd53750a961e81cc73b91698e691d234d5aea6ed6a787cfc777a",
+    "includedInBlock": 5,
+    "blockHash": "0x6d51c3d822ca1edd41cf5bca34e14af24381b00d0dca05745ad693911e43a900",
+    "extrinsicsInBlock": 5,
+    "deployExtrinsicIndex": 4,
+    "deployExtrinsicBytes": 27673,
+    "extrinsicHashMethod": "BLAKE2b-256 of the SCALE-encoded extrinsic bytes (from archive_v1_body), matching the node's applied extrinsic hash."
+  },
+  "wallet": {
+    "seed": "00000000…0000000000000002",
+    "coinPk": "5aee546a493df3ac6ee85ef3ae8d647c9b9f3a640c114883113527d67ca2ec69"
+  },
+  "registrationOnChain": false,
+  "knownIndexerLimitation": "indexer-standalone 4.4.0-rc.2 fails to re-apply the deploy's dust spend ('dust spend proof failed to verify') after the node has included it. This is a public-image read-path defect (fixed only in a private GHCR build); it does not affect on-chain inclusion, only indexer-based reads. The deploy pipeline uses submitTxAsync, which is indexer-read-free."
+}

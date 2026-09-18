@@ -1,0 +1,13 @@
+Node log evidence (clean-machine reproducibility run, fresh devnet chain):
+  Run: docker compose down -> up -d, then pnpm run deploy --network=local (rc=0, 49s)
+  Contract:  b72da755eea42269a7d21853c42e2c3b630f78fec8d3712d93b4a4bb66e08499
+  SDK tx id: 00f94fa655f54367ff39e5aba2f48e80af03f62753a09a57171a374006415549c4
+  Applied extrinsic hash (BLAKE2b-256 of SCALE extrinsic #4):
+              576f8749e906dd53750a961e81cc73b91698e691d234d5aea6ed6a787cfc777a
+
+2026-09-18 17:31:24 🔖 Pre-sealed block for proposal at 5. Hash now 0x6d51c3d822ca1edd41cf5bca34e14af24381b00d0dca05745ad693911e43a900, previously 0x666ef899342103c21fbbca2c493780c8e36fb081b058077d4eb7a1c72aca74c1.
+2026-09-18 17:31:24 🏆 Imported #5 (0x667d…b6eb → 0x6d51…a900)
+
+Block #5 body (archive_v1_body): 5 extrinsics; index 4 holds the 27,673-byte
+contract deploy. Ledger version at deploy: 1.0.0 (ledger-9.1.0.0-rc.4),
+spec version 2001000, chain "undeployed1".

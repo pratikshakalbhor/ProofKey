@@ -1,0 +1,10 @@
+Indexer read-path limitation, confirmed on the reproducibility run (fresh chain):
+the public indexer image cannot re-apply the deploy's dust spend after the node has
+included it, so indexer-based reads (watchForTxData, contract state, on-chain
+registerIssuer/registerSchema) remain unavailable. The deploy pipeline itself uses
+submitTxAsync and is indexer-read-free. Note the indexer refers to the same deploy
+under its own canonical transaction id (87d857de…) which differs from both the SDK
+submission id (00f94fa6…) and the applied extrinsic hash (576f8749…) — see
+evidence-deploy.json for the mapping and the inclusion proof (block #5).
+
+{"timestamp":"2026-09-18T17:32:34.125444+00:00","level":"ERROR","target":"indexer_standalone","file":"indexer-standalone/src/main.rs","line":225,"message":"chain-indexer exited with ERROR","kvs":{"backtrace":"disabled backtrace","error":"index_blocks_task failed: apply transactions to ledger state: cannot apply regular transaction 87d857de9ccfac95a49a1e411b4e43006e5b010c3081de7071bbc505690e549a: malformed transaction: dust spend proof failed to verify; this is just as likely a disagreement on dust state on the declared time (Timestamp(1789752660)) as the proof being invalid: DustSpend { v_fee: 7645418513542597, old_nullifier: <dust nullifier>, new_commitment: <dust commitment>, proof: <proof> }"}}

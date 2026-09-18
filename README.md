@@ -8,15 +8,29 @@ Zero-knowledge credential verification on Midnight — prove a single claim, don
 
 > **PENDING — no public URL yet.** The frontend is ready to deploy: from the repo root run `vercel` once (auth at https://vercel.com), then `vercel --prod` — SPA/static, no backend needed (`vercel.json` is committed). This box is filled in the moment the deployment is live. Until then, run it locally with `pnpm dev` → http://localhost:3000.
 
-## Deployed contract (Preprod)
+## Deployed contract
 
-> **PENDING — not deployed on-chain yet.**
-> Today every credential (issuance, proof, verification, revocation) runs on the **circuit-simulator engine** against an in-memory ledger — nothing is broadcast to Midnight Preprod. `pnpm deploy` writes a manifest with `engine: "circuit-simulator"` and an off-chain derived address (see [Known Simulations](#known-simulations)). A real Preprod deployment needs a funded Midnight wallet and the wallet/tx integration, tracked in the Phase 5 checklist below.
+There are **two distinct addresses**, never conflated:
+
+| Address | Value | Status |
+|---------|-------|--------|
+| **Preprod** (public) | `TBD` | **Blocked** — see below |
+| **Local ledger-v9 devnet** | last value in `managed/deploy/local.json` (or see `doc/evidence/evidence-deploy.json`) | Real — contract deployed on-chain by `pnpm run deploy` |
+
+> **Preprod — BLOCKED by a network-level fork-timing mismatch.** Preprod is still
+> on the pre-fork ledger **v8** (`specVersion 1000000`), while the compiled
+> contract targets **ledger v9**. The v9 hard fork was staged on 2026-08-21 but
+> is not yet activated; no activation date/block has been announced. This is
+> outside this project's control. The deploy path itself is fully real and
+> working (see [Known Simulations](#known-simulations)) and will deploy to
+> Preprod the moment the fork lands, provided the wallet is funded
+> (https://faucet.preprod.midnight.network). Nothing has been broadcast to
+> Preprod; the row above stays `TBD` until a real preprod transaction exists.
 
 | Item | Value |
 |------|-------|
 | Network | `preprod` |
-| Contract address | `TBD` |
+| Contract address | `TBD` (blocked, see above) |
 | Explorer | [Midnight Preprod explorer](https://explorer.midnight.network/) (address-linked once deployed) |
 
 ## Project Vision
@@ -104,11 +118,11 @@ pnpm typecheck
 pnpm build
 ```
 
-Optional — local Midnight devnet (node + indexer + proof server):
+Optional — current-era local Midnight devnet (node 2.1.0-beta.1 + indexer + proof server 9.0.0-rc.7):
 
 ```bash
 docker compose up -d
-pnpm deploy --network=local    # writes managed/deploy/local.json (simulator manifest)
+pnpm run deploy --network=local    # writes managed/deploy/local.json (REAL deploy tx, ledger-v9)
 ```
 
 Optional — recompile the Compact contract (needs the Compact toolchain):
@@ -124,8 +138,31 @@ Interactive walkthrough: open **Issuer** → "Issue credential", then **Holder**
 
 This project is honest about where it is and isn't production-real:
 
-- **Web demo = circuit simulator, not a proof server.** The three-portal web app drives the real *compiled* Compact circuits through `@midnight-ntwrk/compact-runtime`'s simulator. The in-browser ledger is in-memory and per-page. Proofs are real circuit transcripts (`engine: "circuit-simulator"`, `zkProven: false`) — the UI prints this amber warning itself. A proof server (the `docker compose` `proof-server` service) is required to turn these into real SNARKs; the SDK reserves a `proofServerUrl` option for it but it is not wired for proving end-to-end yet.
-- **No on-chain deployment yet.** `pnpm deploy` registers the issuer/schema through the simulator and writes a **deterministically derived off-chain** "contract address" (from the network + wallet seed, see `src/network.ts`); it does not broadcast a transaction. There is no real Preprod contract address to paste in the README until the wallet/tx integration lands.
+- **Contract deploy: REAL.** `pnpm run deploy` deploys the credential registry to a
+  **local ledger-v9 devnet** — a real node (`midnightntwrk/midnight-node:2.1.0-beta.1`,
+  `specVersion 2001000`), a real proof server (`midnightntwrk/proof-server:9.0.0-rc.7`),
+  real wallet/fee balancing, and a real deploy transaction accepted and applied by
+  the node. Evidence (from the reproducibility validation run): the submission was
+  applied as extrinsic `576f8749e906dd53750a961e81cc73b91698e691d234d5aea6ed6a787cfc777a`,
+  included in **block #5** (`0x6d51c3d8…43a900`); contract
+  `b72da755eea42269a7d21853c42e2c3b630f78fec8d3712d93b4a4bb66e08499` (SDK tx id
+  `00f94fa6…15549c4`, written to `managed/deploy/local.json`).
+  Files: [`doc/evidence/evidence-deploy.json`](doc/evidence/evidence-deploy.json),
+  [`doc/evidence/evidence-node.txt`](doc/evidence/evidence-node.txt).
+- **NOT deployed to Preprod — blocked by a network fork-timing mismatch.** Preprod
+  is still ledger v8; our compiled contract targets v9. This is outside our control;
+  the evidence above shows the deploy path itself is fully real and working, and it
+  will deploy to Preprod immediately once the fork lands.
+- **Indexer reads: NOT available.** Blocked by a public indexer image
+  (`midnightntwrk/indexer-standalone:4.4.0-rc.2`) that does not re-apply our
+  deploy's dust spend; the fix (`4.4.0-rc.5`) exists only in a private GHCR
+  registry we don't have access to. Therefore post-deploy calls that need indexer
+  reads (`watchForTxData`, contract state, `registerIssuer`/`registerSchema`
+  on-chain) are unavailable — the deploy submits via `submitTxAsync`, which is
+  indexer-free, and issuer/schema registration is pending the read-path fix.
+  [`doc/evidence/evidence-indexer.txt`](doc/evidence/evidence-indexer.txt) proves
+  this was investigated, not skipped.
+- **Web demo = circuit simulator, not a proof server.** The three-portal web app drives the real *compiled* Compact circuits through `@midnight-ntwrk/compact-runtime`'s simulator. The in-browser ledger is in-memory and per-page. Proofs are real circuit transcripts (`engine: "circuit-simulator"`, `zkProven: false`) — the UI prints this amber warning itself. The `pnpm cli` issuer/holder/verifier walkthrough runs the same simulator engine.
 - **Wallet connect is real; anchoring is not wallet-backed.** The 1AM DApp-Connector integration reports real connection status, addresses and DUST/NIGHT balances, but issuance/revocation still happen in the simulator ledger rather than through the connected wallet.
 - **Issuer API is a separate service.** Express + SQLite (JWT/RBAC, audit, schemas, delivery) is complete and tested on its own but is not the source of proofs in the current web demo.
 - **Circuits & crypto are real.** `hashCredential` / `buildCredential` / commitments / in-circuit JubJub Schnorr verification / revocation sets are exercised by `pnpm test:e2e-crypto` (29 checks) with real compiled `.zkir` circuits.
@@ -134,7 +171,7 @@ This project is honest about where it is and isn't production-real:
 
 | Item | Status |
 |------|--------|
-| MVP live on Preprod (verifiable address) | **Blocked** — needs a funded Midnight Preprod wallet + wallet/tx integration |
+| MVP live on Preprod (verifiable address) | **Blocked** — network fork-timing: Preprod is still ledger v8; the contract targets v9 (outside our control). Real deploy proven on a local ledger-v9 devnet — see [Known Simulations](#known-simulations) |
 | Frontend deployed publicly | Ready in repo (`vercel.json`); run once — see [Live demo](#live-demo) |
 | README with setup + usage | Done (this file) |
 | CI/CD passing on repo | Done — [workflow](https://github.com/pratikshakalbhor/verishield/actions/workflows/ci.yml) green on `main` |
