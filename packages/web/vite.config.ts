@@ -21,6 +21,12 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: WASM_PACKAGES,
+    // @midnight-ntwrk/compact-runtime (excluded, WASM) does a static default
+    // import of the CommonJS 'object-inspect' (dist/error.js). Excluded
+    // packages are never scanned, so 'object-inspect' was served as raw CJS
+    // with no ESM 'default' export in the browser. Force pre-bundling so the
+    // import resolves with proper CJS->ESM interop.
+    include: ['object-inspect'],
     esbuildOptions: { target: 'esnext' },
   },
   esbuild: {

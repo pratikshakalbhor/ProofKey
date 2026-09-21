@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import {
   AlertTriangle,
   ExternalLink,
@@ -6,6 +7,7 @@ import {
   ShieldCheck,
   Unplug,
   Wallet,
+  X,
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -25,6 +27,12 @@ const WALLET_TITLES: Record<string, string> = {
 export function WalletConnect() {
   const wallet = useMidnight();
   const { phase } = wallet;
+  const [dismissed, setDismissed] = useState<'connect-error' | 'network-mismatch' | null>(null);
+
+  // Show the notice again whenever the wallet phase or network state changes.
+  useEffect(() => {
+    setDismissed(null);
+  }, [phase, wallet.networkMismatch]);
 
   return (
     <Card variant="glass" className="overflow-hidden">
@@ -60,6 +68,10 @@ export function WalletConnect() {
               <ExternalLink className="h-4 w-4" aria-hidden />
               Get 1AM wallet
             </Button>
+            <p className="text-xs text-slate-500">
+              Optional for this demo — the Local Devnet flow runs entirely in the in-browser
+              circuit simulator without a wallet.
+            </p>
           </div>
         )}
 
@@ -73,6 +85,10 @@ export function WalletConnect() {
               <ShieldCheck className="h-4 w-4" aria-hidden />
               Connect {wallet.wallets[0]?.name ?? 'wallet'}
             </Button>
+            <p className="text-xs text-slate-500">
+              Optional — the Local Devnet demo runs on the in-browser circuit simulator, so you
+              can ignore wallet connection and still issue, prove, verify and revoke.
+            </p>
           </div>
         )}
 
@@ -83,11 +99,25 @@ export function WalletConnect() {
           </div>
         )}
 
-        {phase === 'error' && (
+        {phase === 'error' && dismissed !== 'connect-error' && (
           <div className="space-y-3">
             <div className="flex items-start gap-2 rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-sm text-rose-300">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <span>{wallet.error}</span>
+              <div className="min-w-0 flex-1">
+                <p>{wallet.error}</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  Optional on this Local Devnet demo: issuance, proof, verification and
+                  revocation run in the in-browser circuit simulator and do not need a wallet.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDismissed('connect-error')}
+                className="shrink-0 rounded-md p-1 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+                aria-label="Dismiss wallet warning"
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </button>
             </div>
             <Button size="sm" variant="secondary" onClick={wallet.connect}>
               Try again
@@ -97,11 +127,23 @@ export function WalletConnect() {
 
         {phase === 'connected' && (
           <div className="space-y-4">
-            {wallet.networkMismatch && (
+            {wallet.networkMismatch && dismissed !== 'network-mismatch' && (
               <div className="flex items-start gap-2 rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-xs text-amber-200">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                Wallet is on a different network than <span className="hash-block">VITE_NETWORK</span>.
-                Switch networks in 1AM to match.
+                <div className="min-w-0 flex-1">
+                  Wallet is on a different network than{' '}
+                  <span className="hash-block">{wallet.networkId}</span>. 1AM only connects to
+                  real Midnight networks (preprod/testnet/mainnet); this Local Devnet demo runs
+                  on the in-browser circuit simulator, so you can continue without matching.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDismissed('network-mismatch')}
+                  className="shrink-0 rounded-md p-1 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+                  aria-label="Dismiss network warning"
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
               </div>
             )}
 
