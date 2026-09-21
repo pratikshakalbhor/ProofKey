@@ -9,7 +9,7 @@ packages/issuer-api/dist
 packages/shared/dist
 packages/web/dist
 packages/contracts/managed/*/keys
-managed
+/managed
 .midnight-wallet-state
 *.sqlite
 *.sqlite-shm
