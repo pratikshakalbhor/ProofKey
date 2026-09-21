@@ -1,6 +1,6 @@
 {
   "buildCommand": "pnpm --filter web build",
   "outputDirectory": "packages/web/dist",
-  "installCommand": "corepack enable && corepack prepare pnpm@12.4.2 --activate && pnpm install --frozen-lockfile",
+  "installCommand": "npm install -g pnpm@12.4.2 && pnpm install --frozen-lockfile",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
