@@ -18,8 +18,8 @@
     "@midnight-ntwrk/midnight-js-contracts": "5.0.0-beta.8",
     "@midnight-ntwrk/midnight-js-network-id": "5.0.0-beta.8",
     "@midnight-ntwrk/testkit-js": "5.0.0-beta.8",
-    "@verishield/contracts": "workspace:*",
-    "@verishield/shared": "workspace:*"
+    "@verishield/contracts": "*",
+    "@verishield/shared": "*"
   },
   "devDependencies": {
     "typescript": "^5.7.0"

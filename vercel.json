@@ -1,6 +1,6 @@
 {
-  "buildCommand": "pnpm --filter web build",
+  "buildCommand": "npm run build --workspace=packages/web",
   "outputDirectory": "packages/web/dist",
-  "installCommand": "npm install -g pnpm@12.4.2 && pnpm install --frozen-lockfile",
+  "installCommand": "npm install",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }

@@ -3,32 +3,34 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "packageManager": "pnpm@12.4.2",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "pnpm --filter web dev",
-    "build": "pnpm --filter @verishield/shared build && pnpm --filter issuer-api build && pnpm --filter web build",
-    "dev:issuer": "pnpm --filter issuer-api dev",
-    "compile:contracts": "pnpm --filter @verishield/contracts compile",
-    "test:e2e-crypto": "pnpm --filter @verishield/shared test:e2e-crypto",
+    "dev": "npm run dev --workspace=packages/web",
+    "build": "npm run build --workspace=packages/shared && npm run build --workspace=packages/issuer-api && npm run build --workspace=packages/web",
+    "dev:issuer": "npm run dev --workspace=packages/issuer-api",
+    "compile:contracts": "npm run compile --workspace=packages/contracts",
+    "test:e2e-crypto": "npm run test:e2e-crypto --workspace=packages/shared",
     "setup": "tsx src/setup.ts",
-    "compile": "pnpm compile:contracts",
+    "compile": "npm run compile:contracts",
     "deploy": "tsx src/deploy.ts",
     "network": "tsx src/network.ts",
     "test": "vitest run",
     "cli": "tsx src/cli.ts",
-    "frontend": "pnpm --filter web dev",
+    "frontend": "npm run dev --workspace=packages/web",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "engines": {
     "node": ">=22"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@verishield/contracts": "workspace:*",
-    "@verishield/deploy-tools": "workspace:*",
-    "@verishield/shared": "workspace:*",
+    "@verishield/contracts": "*",
+    "@verishield/deploy-tools": "*",
+    "@verishield/shared": "*",
     "dotenv": "^16.4.5",
     "eslint": "^10.10.0",
     "eslint-plugin-react-hooks": "^7.1.1",
