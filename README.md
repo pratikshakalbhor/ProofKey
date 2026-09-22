@@ -26,7 +26,14 @@ Zero-knowledge credential verification on Midnight — prove a single claim, don
 
 ## Live demo
 
-> **PENDING — no public URL yet.** The frontend is build-ready: from the repo root run `vercel` once (authenticate at https://vercel.com), then `vercel --prod`. It is a static SPA — no backend to host (`vercel.json` is committed and the Vite build emits `packages/web/dist`). This box will be filled in the moment a deployment is live. Until then, run it locally:
+**Live:** <https://proofkey-seven.vercel.app/>
+
+Verified 2026-09-22: HTTP 200 at <https://proofkey-seven.vercel.app/> — the Vite build
+serves the VeriShield landing page ("Prove it. Don't show it.", `<div id="root">` SPA
+shell + JS/CSS asset 200s). It is a static SPA — no backend to host (`vercel.json` is
+committed and the Vite build emits `packages/web/dist`).
+
+Run it locally too:
 
 ```bash
 pnpm dev   # → http://localhost:3000
@@ -38,33 +45,48 @@ There are **two distinct addresses — never conflated**:
 
 | Address | Value | Status |
 |---------|-------|--------|
-| **Preprod** (public network) | `TBD` | **Blocked** — network fork-timing mismatch, see below |
+| **Any public network** (Preview / Preprod / Mainnet) | `TBD` | **Blocked** — every public network is still ledger v8; no public ledger-v9 network exists yet (see below) |
 | **Local ledger-v9 devnet** | `b72da755eea42269a7d21853c42e2c3b630f78fec8d3712d93b4a4bb66e08499` (last value in [`managed/deploy/local.json`](managed/deploy/local.json)) | Real — contract deployed on-chain by `pnpm run deploy --network=local` |
 
 | Item | Value |
 |------|-------|
 | Network | `preprod` |
-| Contract address | `TBD` (blocked, see below) |
+| Contract address | `TBD` — no public network is ledger-v9 yet (see below) |
 | Explorer | [Midnight network explorer](https://explorer.midnight.network/) (address-linked once deployed) |
 
-> **Preprod — BLOCKED by a network-level fork-timing mismatch.** Preprod is still on the
-> pre-fork ledger **v8** (`specVersion 1000000`), while the compiled contract targets
-> **ledger v9**. The v9 hard fork was staged on 2026-08-21 but has not been activated; no
-> activation date/block has been announced. This is outside this project's control. The
-> deploy path itself is fully real and working (see [Known simulations](#known-simulations))
-> and will deploy to Preprod the moment the fork lands, provided the wallet is funded
-> (https://faucet.preprod.midnight.network). Nothing has been broadcast to Preprod; the row
-> above stays `TBD` until a real preprod transaction exists.
+> **Public deploy — BLOCKED: no public ledger-v9 network exists.** The compiled contract
+> targets ledger **v9**, but every public Midnight network is confirmed to still be on the
+> pre-fork ledger **v8** (`specVersion 1000000` on preprod). This was verified against
+> official docs and release notes on 2026-09-21, not assumed:
 >
-> **Last re-checked externally: 2026-09-21.** Independent web checks made the same day
-> corroborate this status: (1) a midnightntwrk/midnight-js PR notes the hard-fork CI lane
-> has been `0/7` on every branch since 2026-09-11; (2) a third-party integration repo
-> (nmkr-midnight-api) states ledger **v8 (8.1.x)** is correct for preprod's current
-> `event[v9]` format and that ledger-v9 releases target a *future* format preprod cannot
-> parse; (3) `@midnight-ntwrk/ledger-v9` still ships release candidates (rc.5 as of
-> 2026-09-14) with no stable/activated release and no announced Preprod activation date.
-> This could change at any time — if there is a gap before final submission, re-verify
-> before relying on the `TBD`.
+> 1. **There are exactly three public networks** — Preview, Preprod and Mainnet — per
+>    <https://docs.midnight.network/guides/networks-and-environments>: "`system_chain`
+>    returns *Midnight Preview*, *Midnight Preprod*, or *Midnight Mainnet*". No
+>    qanet/devnet appears in that list, and the former `testnet-02` is explicitly
+>    **retired** on the same page ("Use preview or preprod instead").
+> 2. **All three public networks are still ledger v8** — Midnight's release overview
+>    states the current release "delivers Midnight Ledger 8.0 on Preview, Preprod, and
+>    Mainnet".
+> 3. **The only v9-ledger chains are internal, not public** — `midnightntwrk/midnight-node`
+>    documents `qanet` as its **QA testing network** (genesis rebuilds require internal AWS
+>    secrets), and its 2.x release notes describe `dev`/`devnet`/`stagenet` as fresh
+>    ledger-9 genesis rounds — "a new chain, not mainnet" — with no documented public RPC,
+>    indexer or faucet for any of them.
+>
+> This is a **structurally blocked** state, not a skipped step: the local ledger-v9 deploy
+> below shows the deploy path is fully real and working, and it will deploy to a public
+> network the moment the fork lands, provided the wallet is funded
+> (https://faucet.preprod.midnight.network). Nothing has been broadcast to any public
+> network; the row above stays `TBD` until a real public-network transaction exists.
+>
+> **Last re-checked externally: 2026-09-21.** Preprod-specific corroboration made the same
+> day: (1) a midnightntwrk/midnight-js PR notes the hard-fork CI lane has been `0/7` on
+> every branch since 2026-09-11; (2) a third-party integration repo (nmkr-midnight-api)
+> states ledger **v8 (8.1.x)** is correct for preprod's current `event[v9]` format and
+> that ledger-v9 releases target a *future* format preprod cannot parse; (3)
+> `@midnight-ntwrk/ledger-v9` still ships release candidates (rc.5 as of 2026-09-14) with
+> no stable/activated release and no announced activation date. This could change at any
+> time — if there is a gap before final submission, re-verify before relying on the `TBD`.
 
 ## The problem
 
@@ -296,11 +318,14 @@ re-verified against the current repo state and the evidence files in
   `00f94fa6…15549c4`, written to `managed/deploy/local.json`).
   Files: [`evidence-deploy.json`](doc/evidence/evidence-deploy.json),
   [`evidence-node.txt`](doc/evidence/evidence-node.txt).
-- **NOT deployed to Preprod — blocked by a network fork-timing mismatch.** Preprod is still
-  ledger v8; the compiled contract targets v9. This is outside our control; the evidence
-  above shows the deploy path itself is fully real and working, and it will deploy to
-  Preprod immediately once the fork lands. Last re-checked externally 2026-09-21 — see the
-  [Deployed contract](#deployed-contract) footnote.
+- **NOT deployed to any PUBLIC network — blocked: no public ledger-v9 network exists yet.**
+  All public networks (Preview, Preprod, Mainnet) are still ledger **v8** while the
+  compiled contract targets v9, confirmed against official docs and release notes on
+  2026-09-21 — the three-network page, the "Ledger 8.0 on Preview, Preprod, and Mainnet"
+  release line, and the fact that `qanet`/`devnet` are internal-only — see the
+  [Deployed contract](#deployed-contract) footnote. This is a structurally blocked state,
+  not a skipped step: the local ledger-v9 deploy above shows the path is fully real and
+  working, and it will deploy to a public network the moment the fork lands.
 - **Indexer reads: NOT available.** Blocked by a public indexer image
   (`midnightntwrk/indexer-standalone:4.4.0-rc.2`) that does not re-apply our deploy's dust
   spend; the fix (`4.4.0-rc.5`) exists only in a private GHCR registry. Therefore
@@ -347,8 +372,8 @@ verishield/
 
 | Item | Status |
 |------|--------|
-| MVP live on Preprod (verifiable address) | **Blocked** — fork-timing: Preprod is still ledger v8, contract targets v9 (outside our control; re-checked externally 2026-09-21). Real deploy proven on a local ledger-v9 devnet — see [Known simulations](#known-simulations) |
-| Frontend deployed publicly | Ready in repo (`vercel.json`); **TODO** — run `vercel --prod`, then update the [Live demo](#live-demo) section with the URL |
+| MVP live on a public network (verifiable address) | **Blocked** — no public ledger-v9 network yet: Preview/Preprod/Mainnet are all still ledger v8, `qanet`/`devnet` are internal-only (verified via official docs + release notes 2026-09-21). Real deploy proven on a local ledger-v9 devnet — see [Known simulations](#known-simulations) |
+| Frontend deployed publicly | **Done** — live at <https://proofkey-seven.vercel.app/> (HTTP 200 verified 2026-09-22) |
 | README with setup + usage | Done (this file) |
 | CI passing on repo | Done — [workflow](https://github.com/pratikshakalbhor/verishield/actions/workflows/ci.yml) green on `main` (badge verified 2026-09-21) |
 | X profile linked in README | **Needs your X URL** — add and link once provided |
