@@ -2,6 +2,7 @@
   "name": "verishield",
   "private": true,
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "type": "module",
   "workspaces": [
     "packages/*"
@@ -25,6 +26,18 @@
   },
   "engines": {
     "node": ">=22"
+  },
+  "overrides": {
+    "@midnight-ntwrk/ledger-v8": "8.1.2",
+    "@midnight-ntwrk/compact-js": {
+      "@midnight-ntwrk/ledger-v8": "8.1.2"
+    },
+    "@midnight-ntwrk/midnight-js-contracts": {
+      "@midnight-ntwrk/ledger-v8": "8.1.2"
+    },
+    "@midnight-ntwrk/midnight-js-protocol": {
+      "@midnight-ntwrk/ledger-v8": "8.1.2"
+    }
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

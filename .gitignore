@@ -25,3 +25,6 @@ packages/contracts/managed/*/keys/
 
 # Test-run logs produced by the local devnet/e2e harness.
 logs/
+
+# Dust-wallet sync checkpoints/recovered state (sensitive wallet view state — never committed).
+.wallet-dust-sync/

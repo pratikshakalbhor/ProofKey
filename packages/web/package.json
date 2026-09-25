@@ -2,6 +2,7 @@
   "name": "web",
   "private": true,
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
@@ -10,6 +11,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@midnight-ntwrk/compact-js": "2.5.1",
+    "@midnight-ntwrk/compact-runtime": "0.16.0",
+    "@midnight-ntwrk/dapp-connector-api": "4.0.1",
+    "@midnight-ntwrk/ledger-v8": "8.1.2",
+    "@midnight-ntwrk/midnight-js-contracts": "4.1.1",
+    "@midnight-ntwrk/midnight-js-types": "4.1.1",
+    "@verishield/contracts": "*",
     "@verishield/shared": "*",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",

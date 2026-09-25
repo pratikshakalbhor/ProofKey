@@ -9,6 +9,7 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/dist/**',
       '**/managed/**',
+      '**/.wallet-dust-sync/**',
       '**/*.d.ts',
       '**/*.tsbuildinfo',
     ],
