@@ -11,6 +11,8 @@ import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { WalletConnect } from '@/components/wallet/WalletConnect';
 import { FadeIn, StaggerChildren, StaggerItem } from '@/components/motion';
+import { OnChainPanel } from '@/components/onchain/OnChainPanel';
+import { ProvisioningPanel } from '@/components/onchain/ProvisioningPanel';
 import { useProofStore } from '@/stores/proofStore';
 import type { HolderCredentialView, NewCredentialInput } from '@/lib/midnight/demo';
 
@@ -100,6 +102,14 @@ function IssuerDashboard() {
       </FadeIn>
 
       <FadeIn delay={0.05}>
+        <OnChainPanel />
+      </FadeIn>
+
+      <FadeIn delay={0.1}>
+        <ProvisioningPanel />
+      </FadeIn>
+
+      <FadeIn delay={0.15}>
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-semibold text-white">

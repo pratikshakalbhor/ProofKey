@@ -10,12 +10,15 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  buildPreprodSession,
   discoverWallets,
   openInstallPage,
   selectWallet,
   targetNetworkId,
   toTokenBalances,
   type ConnectedWalletApi,
+  type NamedWallet,
+  type PreprodSession,
   type TokenBalance,
   type WalletInfo,
 } from '@/lib/midnight/wallet';
@@ -28,6 +31,8 @@ export interface UseMidnightResult {
   wallet: WalletInfo | null;
   networkId: string;
   networkMismatch: boolean;
+  /** Connected v4 session for on-chain flows; null until connected on the right network. */
+  session: PreprodSession | null;
   address: string | null;
   shieldedAddress: string | null;
   shieldedCoinPublicKey: string | null;
@@ -50,12 +55,14 @@ function isUserRejection(error: unknown): boolean {
 export function useMidnight(): UseMidnightResult {
   const networkId = targetNetworkId();
   const apiRef = useRef<ConnectedWalletApi | null>(null);
+  const namedWalletRef = useRef<NamedWallet | null>(null);
   const mountedRef = useRef(true);
 
   const [phase, setPhase] = useState<WalletPhase>('detected');
   const [wallets, setWallets] = useState<WalletInfo[]>([]);
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [networkMismatch, setNetworkMismatch] = useState(false);
+  const [session, setSession] = useState<PreprodSession | null>(null);
   const [address, setAddress] = useState<string | null>(null);
   const [shieldedAddress, setShieldedAddress] = useState<string | null>(null);
   const [shieldedCoinPublicKey, setShieldedCoinPublicKey] = useState<string | null>(null);
@@ -134,6 +141,9 @@ export function useMidnight(): UseMidnightResult {
     setError(null);
     setNetworkMismatch(false);
 
+    const namedWallet: NamedWallet = { info: selected.info, api: selected.api };
+    namedWalletRef.current = namedWallet;
+
     let pending: Promise<ConnectedWalletApi>;
     try {
       pending = selected.api.connect(networkId);
@@ -144,10 +154,28 @@ export function useMidnight(): UseMidnightResult {
     }
 
     pending
-      .then((api) => {
+      .then(async (api) => {
         apiRef.current = api;
         if (!mountedRef.current) return;
-        return hydrate();
+        await hydrate();
+        // Wrap the connected API in a v4 session and confirm the network.
+        const selectedWallet = namedWalletRef.current;
+        if (!mountedRef.current || !selectedWallet) return;
+        try {
+          const built = await buildPreprodSession(selectedWallet, api, networkId);
+          if (!mountedRef.current) return;
+          setSession(built);
+          setNetworkMismatch(false);
+        } catch (sessionError) {
+          // Connected, but on a different network: keep the account readout and
+          // surface the mismatch; on-chain flows stay disabled until it matches.
+          if (!mountedRef.current) return;
+          setSession(null);
+          setNetworkMismatch(true);
+          if (sessionError instanceof Error && /network/i.test(sessionError.message)) {
+            setError(sessionError.message);
+          }
+        }
       })
       .catch((connectError: unknown) => {
         if (!mountedRef.current) return;
@@ -166,6 +194,7 @@ export function useMidnight(): UseMidnightResult {
   const disconnect = useCallback(() => {
     const api = apiRef.current;
     apiRef.current = null;
+    namedWalletRef.current = null;
     if (api?.disconnect) {
       try {
         void api.disconnect();
@@ -174,6 +203,7 @@ export function useMidnight(): UseMidnightResult {
       }
     }
     setPhase(wallets.length > 0 ? 'detected' : 'unavailable');
+    setSession(null);
     setAddress(null);
     setShieldedAddress(null);
     setShieldedCoinPublicKey(null);
@@ -195,6 +225,7 @@ export function useMidnight(): UseMidnightResult {
     wallet,
     networkId,
     networkMismatch,
+    session,
     address,
     shieldedAddress,
     shieldedCoinPublicKey,

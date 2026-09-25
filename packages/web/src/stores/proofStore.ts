@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { Claim, ClaimKind, ProofArtifact } from '@verishield/shared';
 import type { VerifyProofResult } from '@verishield/shared/sdk';
+import { submitOnChainCall, type CallInvocation, type SubmittedCall } from '@/lib/midnight/onchain';
+import type { PreprodSession } from '@/lib/midnight/wallet';
 import {
   getDemoEngine,
   type DemoIssuerInfo,
@@ -20,6 +22,11 @@ interface ProofState {
   artifacts: ProofArtifact[];
   ledger: PublicLedgerState | null;
 
+  /** Most recent indexer-confirmed on-chain submission via the wallet. */
+  submission: SubmittedCall | null;
+  submissionError: string | null;
+  submissionBusy: boolean;
+
   boot: () => Promise<void>;
   issue: (input: NewCredentialInput) => Promise<HolderCredentialView>;
   revoke: (credentialId: string) => Promise<void>;
@@ -29,6 +36,8 @@ interface ProofState {
     expected?: { claim?: ClaimKind; issuerId?: string; schemaId?: string },
   ) => Promise<VerifyProofResult>;
   clearArtifacts: () => void;
+  /** Real wallet submission: prove + balance + broadcast + indexer-confirm. */
+  submitOnChain: (session: PreprodSession, invocation: CallInvocation) => Promise<SubmittedCall>;
 }
 
 export const useProofStore = create<ProofState>((set, get) => ({
@@ -38,6 +47,10 @@ export const useProofStore = create<ProofState>((set, get) => ({
   credentials: [],
   artifacts: [],
   ledger: null,
+
+  submission: null,
+  submissionError: null,
+  submissionBusy: false,
 
   boot: async () => {
     const { status } = get();
@@ -88,4 +101,16 @@ export const useProofStore = create<ProofState>((set, get) => ({
   },
 
   clearArtifacts: () => set({ artifacts: [] }),
+  submitOnChain: async (session, invocation) => {
+    set({ submissionBusy: true, submissionError: null });
+    try {
+      const submitted = await submitOnChainCall(session, invocation);
+      set({ submission: submitted, submissionBusy: false });
+      return submitted;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      set({ submissionError: message, submissionBusy: false });
+      throw error;
+    }
+  },
 }));

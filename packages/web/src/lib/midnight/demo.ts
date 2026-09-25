@@ -28,15 +28,22 @@ import { loadVeriShieldSdk } from './sdk';
 /**
  * Fixed demo issuer. The secret is intentionally public: this is a local
  * simulator demo, never a production key. 32 bytes (64 hex chars).
+ *
+ * `DEMO_ISSUER_NAME` is the ONE canonical demo identity used across the web
+ * app, the simulator ledger, and (when provisioned) the real on-chain ledger.
+ * The deploy tool's record ("University of Midnight") is a separate historical
+ * deployment default, not the interactive demo.
  */
-const DEMO_ISSUER_NAME = 'Pune University';
+export const DEMO_ISSUER_NAME = 'Pune University';
 const DEMO_ISSUER_SECRET = '9f2c4a1d7b3e5086ac91d42f6b8e07c5d3a41f928b6c0e7d5a3f1902c8b4e6a1';
 
-const SCHEMA_NAMES: Record<CredentialType, string> = {
+export const DEMO_SCHEMA_NAMES: Record<CredentialType, string> = {
   degree: 'Degree',
   license: 'License',
   id: 'Identity',
 };
+
+const SCHEMA_NAMES = DEMO_SCHEMA_NAMES;
 
 const SUGGESTED_CLAIM: Record<CredentialType, Claim> = {
   degree: { kind: 'RANGE_PROOF', minCgpa: 7.5 },
@@ -96,6 +103,17 @@ export interface DemoEngine {
     expected?: { claim?: ClaimKind; issuerId?: string; schemaId?: string },
   ): VerifyProofResult;
   ledger(): PublicLedgerState;
+}
+
+/**
+ * The demo issuer's signing scalar (derived from the module-private secret).
+ * Used only transiently as the `issuerSigningKey` witness when building
+ * registerIssuer / anchorCredential call invocations for the real contract.
+ * The secret itself never leaves this module.
+ */
+export async function demoIssuerSigningKey(): Promise<bigint> {
+  const sdk = await loadVeriShieldSdk();
+  return sdk.signingKeyFromSecret(sdk.fromHex(DEMO_ISSUER_SECRET));
 }
 
 function createEngine(vs: VeriShield, issuer: DemoIssuerInfo): DemoEngine {

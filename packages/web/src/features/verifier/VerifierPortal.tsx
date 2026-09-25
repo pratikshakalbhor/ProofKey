@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { CopyableHash } from '@/components/ui/CopyableHash';
 import { useToast } from '@/components/ui/Toast';
 import { useProofStore } from '@/stores/proofStore';
+import { OnChainPanel } from '@/components/onchain/OnChainPanel';
 import { describeClaim } from '@/lib/midnight/claims';
 import type { VerifyProofResult } from '@verishield/shared/sdk';
 import { cn } from '@/lib/utils';
@@ -106,6 +107,10 @@ function VerifierPanel() {
 
   return (
     <div className="space-y-8">
+      <FadeInMaybe>
+        <OnChainPanel />
+      </FadeInMaybe>
+
       <FadeInMaybe>
         <Card variant="glass" className="p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end">

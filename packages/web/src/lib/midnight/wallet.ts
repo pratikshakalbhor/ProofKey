@@ -136,3 +136,128 @@ export function tokenLabel(tokenType: string): string {
   if (normalized === 'dust') return 'DUST';
   return tokenType.length > 14 ? `${tokenType.slice(0, 8)}…${tokenType.slice(-4)}` : tokenType;
 }
+
+export interface MidnightConfiguration {
+  networkId: string;
+  indexerUri?: string;
+  indexerWsUri?: string;
+  substrateNodeUri?: string;
+}
+
+/**
+ * The DApp Connector v4 `ConnectedAPI` surface VeriShield depends on for the
+ * on-chain flow: proving, shielding/unshielding and transaction submission.
+ * Mirrors `@midnight-ntwrk/dapp-connector-api` (v4.0.1) so the web package can
+ * stay decoupled from that dependency tree.
+ */
+export interface MidnightConnectedApi {
+  getConnectionStatus?(): Promise<WalletConnectionStatus>;
+  getShieldedAddresses?(): Promise<ShieldedAddresses>;
+  getUnshieldedAddress?(): Promise<{ unshieldedAddress: string }>;
+  getDustAddress?(): Promise<{ dustAddress: string }>;
+  getShieldedBalances?(): Promise<Record<string, bigint>>;
+  getUnshieldedBalances?(): Promise<Record<string, bigint>>;
+  getDustBalance?(): Promise<DustBalance>;
+  disconnect?(): Promise<void> | void;
+
+  getConfiguration?(): Promise<MidnightConfiguration>;
+  getProvingProvider?(keyMaterialProvider: {
+    getZKIR: (keyLocation: string) => Promise<Uint8Array>;
+    getProverKey: (keyLocation: string) => Promise<Uint8Array>;
+    getVerifierKey: (keyLocation: string) => Promise<Uint8Array>;
+  }): Promise<WalletProvingProvider>;
+  balanceUnsealedTransaction?(unsealedTx: string): Promise<{ tx: string }>;
+  submitTransaction?(transaction: string): Promise<void>;
+  getTxHistory?(): Promise<WalletTxHistoryEntry[]>;
+}
+
+export interface WalletProvingProvider {
+  check?(getName: string, unprovenTx: string): Promise<CheckCallError[]>;
+  prove?(getName: string, unprovenTx: string): Promise<string>;
+}
+
+export interface CheckCallError {
+  name: string;
+  index: number;
+  errors: string[];
+}
+
+export interface WalletTxHistoryEntry {
+  transaction?: string;
+  type?: string;
+  [k: string]: unknown;
+}
+
+function assertInitialApiConnected(value: unknown): asserts value is ConnectedWalletApi {
+  if (!isConnectedApi(value)) {
+    throw new Error('Wallet connected instance is missing the DApp Connector API surface');
+  }
+}
+
+function isConnectedApi(value: unknown): value is ConnectedWalletApi {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as ConnectedWalletApi).getShieldedAddresses === 'function'
+  );
+}
+
+function asMidnightConnectedApi(value: ConnectedWalletApi): MidnightConnectedApi {
+  return value as MidnightConnectedApi;
+}
+
+export interface NamedWallet {
+  info: WalletInfo;
+  api: InitialWalletApi;
+}
+
+export interface PreprodSession {
+  wallet: NamedWallet;
+  api: MidnightConnectedApi;
+  configuration: MidnightConfiguration;
+}
+
+/**
+ * Builds a `PreprodSession` from an API the wallet already returned from
+ * `connect(...)`. Validates the connected network against the requested id and
+ * types the instance against the verified DApp Connector v4 surface; any method
+ * a particular wallet build does not implement is a hard error at call time,
+ * never a silent fallback.
+ */
+export async function buildPreprodSession(
+  wallet: NamedWallet,
+  connected: ConnectedWalletApi,
+  networkId: string,
+): Promise<PreprodSession> {
+  assertInitialApiConnected(connected);
+  const api = asMidnightConnectedApi(connected);
+
+  let configuration: MidnightConfiguration | undefined;
+  if (typeof api.getConfiguration === 'function') {
+    try {
+      configuration = await api.getConfiguration();
+    } catch {
+      configuration = undefined;
+    }
+  }
+  if (configuration && configuration.networkId && configuration.networkId !== networkId) {
+    throw new Error(
+      `Wallet is connected to "${configuration.networkId}" but the app requires "${networkId}". ` +
+        'Switch networks in the wallet and retry.',
+    );
+  }
+
+  return { wallet, api, configuration: configuration ?? { networkId } };
+}
+
+/**
+ * Connects to an injected wallet and wraps the result in a `PreprodSession`,
+ * requiring the matched network.
+ */
+export async function connectToNetwork(
+  wallet: NamedWallet,
+  networkId: string,
+): Promise<PreprodSession> {
+  const connected = await wallet.api.connect(networkId);
+  return buildPreprodSession(wallet, connected, networkId);
+}

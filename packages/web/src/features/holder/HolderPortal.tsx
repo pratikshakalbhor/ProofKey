@@ -19,6 +19,7 @@ import { CopyableHash } from '@/components/ui/CopyableHash';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import { WalletConnect } from '@/components/wallet/WalletConnect';
+import { OnChainPanel } from '@/components/onchain/OnChainPanel';
 import { FadeIn, StaggerChildren, StaggerItem } from '@/components/motion';
 import { useProofStore } from '@/stores/proofStore';
 import {
@@ -104,6 +105,10 @@ function HolderWallet() {
     <div className="space-y-8">
       <FadeIn>
         <WalletConnect />
+      </FadeIn>
+
+      <FadeIn delay={0.05}>
+        <OnChainPanel />
       </FadeIn>
 
       <FadeIn delay={0.1}>

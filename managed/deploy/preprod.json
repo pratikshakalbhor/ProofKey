@@ -1,0 +1,21 @@
+{
+  "status": "deployed",
+  "network": "preprod",
+  "networkType": "preprod",
+  "contractAddress": "f9966bb9b48e0eba85a59909b0a3619e904a48888f5c19b6ab9501efa958747f",
+  "deployTxId": "00a9dd89c700d7c505e56fd1331996f7f74d935cc97b0c04a69b88cd2e1de27cba",
+  "onChainTxHash": "a4fda59021c5b5afe4cebe9eba352cb67e151f87b9df60d3906e56be806fd98c",
+  "specVersion": 1000300,
+  "issuerName": "University of Midnight",
+  "schemaName": "BachelorDegree:v1",
+  "issuerId": "98f78286d081f48a13249cf283aa7877a99de33ad4e250ba438ba40b7037f8f7",
+  "schemaId": "c2856010799c4d8f4d5b1f7f52fb0efff4cde263210bc57fa33478e09bf535f9",
+  "registrationOnChain": false,
+  "coinPublicKey": "f29be517b9280677f1da33d6099ab5989910a8182c8534b26236ebed30b24227",
+  "deployedAt": 1790245278,
+  "engine": "real-deploy",
+  "artifacts": "packages/contracts/managed/credential-registry (compact 0.31.1 / ledger v8)",
+  "blockHeight": 2687934,
+  "blockHash": "993f43c6318d601bcaea90016d218633fe65975ed7860c6c182ef39d5befa62c",
+  "confirmedAt": 1790246606
+}

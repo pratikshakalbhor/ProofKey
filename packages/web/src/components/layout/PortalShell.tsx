@@ -239,7 +239,7 @@ function NetworkIndicator() {
       <button
         onClick={status === 'disconnected' ? connect : undefined}
         className="flex items-center gap-2 text-xs font-medium text-slate-300"
-        title="Local devnet endpoints (deferred — demo runs on the circuit simulator)"
+        title={`${network.name} · live Preprod indexer`}
       >
         <span className="relative flex h-1.5 w-1.5">
           {status === 'connecting' && (
