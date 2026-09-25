@@ -61,7 +61,7 @@ export interface IssuerAnchor {
  */
 const anchoredIssuers = new Set<string>();
 
-/** Anchors the institution's JubJub verifying key on-chain (idempotent per process). */
+/** Anchors the institution's ledger-level verifying key on-chain (idempotent per process). */
 export async function registerIssuer(
   issuerName: string,
   secret: Uint8Array,
@@ -74,7 +74,7 @@ export async function registerIssuer(
   return anchor;
 }
 
-/** Ensures the issuer is registered before an issuer-signed circuit runs. */
+/** Ensures the issuer is registered before an anchored-credential circuit runs. */
 async function ensureIssuerRegistered(issuerName: string, secret: Uint8Array): Promise<void> {
   if (anchoredIssuers.has(issuerName)) return;
   await registerIssuer(issuerName, secret);
@@ -103,14 +103,14 @@ export async function revokeOnChain(
   const sdk = await loadSdk();
   const client = await getClient();
   const blockTime = Math.floor(Date.now() / 1000);
-  await withRetry('revokeCredential', () =>
+  await withRetry('revokeCredential', async () => {
     client.runtime.revokeCredential(
       issuerIdBytes(sdk, issuerName),
       sdk.fromHex(payloadHashHex),
       blockTime,
       sdk.signingKeyFromSecret(secret),
-    ),
-  );
+    );
+  });
 }
 
 export async function publishRevocationRoot(
@@ -122,14 +122,14 @@ export async function publishRevocationRoot(
   const sdk = await loadSdk();
   const client = await getClient();
   const blockTime = Math.floor(Date.now() / 1000);
-  await withRetry('updateRevocationRoot', () =>
+  await withRetry('updateRevocationRoot', async () => {
     client.runtime.publishRevocationRoot(
       issuerIdBytes(sdk, issuerName),
       sdk.fromHex(rootHex),
       blockTime,
       sdk.signingKeyFromSecret(secret),
-    ),
-  );
+    );
+  });
 }
 
 /** Public, PII-free ledger projection. */

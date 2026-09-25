@@ -5,20 +5,25 @@
  * circuits for every digest, so the commitment/leaf are byte-identical to the
  * values the on-chain circuits recompute.
  *
- * Issuer authenticity is a real JubJub Schnorr signature over the credential
- * commitment. It is produced here with `jubjubSchnorrSign` and verified
- * *inside* every claim circuit with `jubjubSchnorrVerify` against the issuer's
- * registered verifying key - so the holder can prove issuer endorsement
- * without revealing the payload and without trusting an off-chain check.
+ * Issuer authenticity is anchored at the LEDGER level: the on-chain registry
+ * stores the verifying key `ecMulGenerator(sk)` and every issuance mutation
+ * proves knowledge of `sk`. For the holder, the issuer ALSO produces a
+ * portable Ed25519 signature over the commitment using the ledger runtime's
+ * own `signData` / `verifySignature` primitives — verifiable off-chain by any
+ * party holding the issuer key, without a ZK circuit.
+ *
+ * (This v8 ledger-anchoring variant deliberately does NOT use the in-circuit
+ * `jubjubSchnorr*` primitives, which only exist from compact-runtime 0.19.0 /
+ * language 0.26 — unavailable on ledger-v8 toolchains.)
  */
 
 import { pureCircuits } from '@verishield/contracts';
 import {
-  jubjubSchnorrSign,
-  jubjubSchnorrVerify,
-  jubjubSchnorrVerifyingKey,
-  CompactTypeField,
-  CompactTypeVector,
+  ecMulGenerator,
+  signData,
+  signingKeyFromBip340,
+  signatureVerifyingKey,
+  verifySignature,
 } from '@midnight-ntwrk/compact-runtime';
 
 import type {
@@ -26,12 +31,12 @@ import type {
   CredentialDisclosure,
   CredentialIssuanceRequest,
   CredentialPayloadValue,
-  JubjubSchnorrSignatureValue,
+  Ed25519SignatureHex,
+  JubjubPointValue,
 } from '../types/verishield.js';
 import {
   BYTES_32,
   asBytes32,
-  commitmentMessageFields,
   decodeField,
   encodeField,
   fromHex,
@@ -46,9 +51,6 @@ import {
 } from './encoding.js';
 
 const FOUR_YEARS_SECONDS = 4 * 365.25 * 24 * 60 * 60;
-
-/** Message type: the 32-byte commitment as a `Vector<32, Field>`. */
-const COMMITMENT_MESSAGE_TYPE = new CompactTypeVector(32, CompactTypeField);
 
 function resolveSecretKey(secretKey: Uint8Array | string): Uint8Array {
   const bytes = typeof secretKey === 'string' ? fromHex(secretKey) : secretKey;
@@ -137,14 +139,22 @@ export function hashCredential(
   };
 }
 
-/** Derives the issuer's JubJub verifying key from its 32-byte secret. */
-export function issuerVerifyingKeyFromSecret(secretKey: Uint8Array | string): { x: bigint; y: bigint } {
-  return jubjubSchnorrVerifyingKey(signingKeyFromSecret(resolveSecretKey(secretKey)));
+/**
+ * Derives the issuer's on-chain verifying key from its 32-byte secret.
+ * `ecMulGenerator(sk)` is exactly what `registerIssuer` stores, so the
+ * returned point must match the point the chain holds (that equality is the
+ * ledger-level authority check).
+ */
+export function issuerVerifyingKeyFromSecret(secretKey: Uint8Array | string): JubjubPointValue {
+  return ecMulGenerator(signingKeyFromSecret(resolveSecretKey(secretKey)));
 }
 
 /**
- * Builds a complete credential: computes the commitment, anchors the leaf in
- * the payload, and signs the commitment with the issuer's JubJub Schnorr key.
+ * Builds a complete credential: computes the commitment, derives the issuance
+ * leaf, and produces the issuer's portable Ed25519 signature over the
+ * commitment (ledger runtime `signData`). The on-chain anchoring (which
+ * requires the ledger-level authority witness) is a separate step —
+ * `anchorCredential` / `issueCredential`.
  */
 export function buildCredential(
   request: CredentialIssuanceRequest,
@@ -156,13 +166,8 @@ export function buildCredential(
   const commitment = commitmentOf(payload, salt);
   const leaf = asBytes32(pureCircuits.leafFromCommitment(issuerId, commitment), 'leaf');
 
-  const signingKey = signingKeyFromSecret(secretKey);
-  const verifyingKey = jubjubSchnorrVerifyingKey(signingKey);
-  const signature: JubjubSchnorrSignatureValue = jubjubSchnorrSign(
-    COMMITMENT_MESSAGE_TYPE,
-    commitmentMessageFields(commitment),
-    signingKey,
-  );
+  const verifyingKey = ecMulGenerator(signingKeyFromSecret(secretKey));
+  const signature: Ed25519SignatureHex = signData(signingKeyFromBip340(secretKey), commitment);
 
   const disclosure: CredentialDisclosure = {
     id: `cred_${toHex(commitment).slice(0, 16)}`,
@@ -180,16 +185,18 @@ export function buildCredential(
   return { payload, salt, commitment, leaf, signature, disclosure };
 }
 
-/** Verifies the issuer's JubJub Schnorr signature over a credential commitment. */
+/**
+ * Checks the issuer's Ed25519 signature over the credential commitment using
+ * the ledger runtime's `verifySignature` primitive against the key derived
+ * from the issuer secret.
+ */
 export function verifyCredentialSignature(
   credential: Pick<BuiltCredential, 'commitment' | 'signature'>,
   issuerSecretKey: Uint8Array | string,
 ): boolean {
-  const verifyingKey = issuerVerifyingKeyFromSecret(issuerSecretKey);
-  return jubjubSchnorrVerify(
-    COMMITMENT_MESSAGE_TYPE,
-    commitmentMessageFields(credential.commitment),
-    verifyingKey,
+  return verifySignature(
+    signatureVerifyingKey(signingKeyFromBip340(resolveSecretKey(issuerSecretKey))),
+    credential.commitment,
     credential.signature,
   );
 }

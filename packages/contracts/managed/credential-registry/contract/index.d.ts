@@ -9,9 +9,6 @@ export enum ClaimType { HAS_CREDENTIAL = 0,
 
 export type Witnesses<PS> = {
   issuerSigningKey(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, bigint];
-  credentialSignature(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, { announcement: __compactRuntime.JubjubPoint,
-                                                                                    response: bigint
-                                                                                  }];
   credentialPayload(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, { schemaId: Uint8Array,
                                                                                   holderBinding: Uint8Array,
                                                                                   nameHash: Uint8Array,
@@ -28,86 +25,86 @@ export type ImpureCircuits<PS> = {
   registerIssuer(context: __compactRuntime.CircuitContext<PS>,
                  issuerId_0: Uint8Array,
                  name_0: Uint8Array,
-                 registeredAt_0: bigint): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                 registeredAt_0: bigint): __compactRuntime.CircuitResults<PS, []>;
   setIssuerActive(context: __compactRuntime.CircuitContext<PS>,
                   issuerId_0: Uint8Array,
-                  active_0: boolean): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                  active_0: boolean): __compactRuntime.CircuitResults<PS, []>;
   registerSchema(context: __compactRuntime.CircuitContext<PS>,
                  schemaId_0: Uint8Array,
-                 schemaHash_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                 schemaHash_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   anchorCredential(context: __compactRuntime.CircuitContext<PS>,
                    issuerId_0: Uint8Array,
-                   commitment_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, Uint8Array>>;
+                   commitment_0: Uint8Array): __compactRuntime.CircuitResults<PS, Uint8Array>;
   revokeCredential(context: __compactRuntime.CircuitContext<PS>,
                    issuerId_0: Uint8Array,
-                   commitment_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                   commitment_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   updateRevocationRoot(context: __compactRuntime.CircuitContext<PS>,
                        issuerId_0: Uint8Array,
-                       root_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                       root_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   updateIssuanceRoot(context: __compactRuntime.CircuitContext<PS>,
                      issuerId_0: Uint8Array,
-                     root_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                     root_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   proveHoldsCredential(context: __compactRuntime.CircuitContext<PS>,
                        issuerId_0: Uint8Array,
-                       schemaId_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, boolean>>;
+                       schemaId_0: Uint8Array): __compactRuntime.CircuitResults<PS, boolean>;
   proveFieldEquals(context: __compactRuntime.CircuitContext<PS>,
                    issuerId_0: Uint8Array,
                    schemaId_0: Uint8Array,
-                   expectedDegree_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, boolean>>;
+                   expectedDegree_0: Uint8Array): __compactRuntime.CircuitResults<PS, boolean>;
   proveRange(context: __compactRuntime.CircuitContext<PS>,
              issuerId_0: Uint8Array,
              schemaId_0: Uint8Array,
-             minCgpaTimes100_0: bigint): Promise<__compactRuntime.CircuitResults<PS, boolean>>;
+             minCgpaTimes100_0: bigint): __compactRuntime.CircuitResults<PS, boolean>;
   proveAgeOver(context: __compactRuntime.CircuitContext<PS>,
                issuerId_0: Uint8Array,
                schemaId_0: Uint8Array,
-               minAge_0: bigint): Promise<__compactRuntime.CircuitResults<PS, boolean>>;
+               minAge_0: bigint): __compactRuntime.CircuitResults<PS, boolean>;
   proveNotExpired(context: __compactRuntime.CircuitContext<PS>,
                   issuerId_0: Uint8Array,
-                  schemaId_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, boolean>>;
+                  schemaId_0: Uint8Array): __compactRuntime.CircuitResults<PS, boolean>;
 }
 
 export type ProvableCircuits<PS> = {
   registerIssuer(context: __compactRuntime.CircuitContext<PS>,
                  issuerId_0: Uint8Array,
                  name_0: Uint8Array,
-                 registeredAt_0: bigint): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                 registeredAt_0: bigint): __compactRuntime.CircuitResults<PS, []>;
   setIssuerActive(context: __compactRuntime.CircuitContext<PS>,
                   issuerId_0: Uint8Array,
-                  active_0: boolean): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                  active_0: boolean): __compactRuntime.CircuitResults<PS, []>;
   registerSchema(context: __compactRuntime.CircuitContext<PS>,
                  schemaId_0: Uint8Array,
-                 schemaHash_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                 schemaHash_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   anchorCredential(context: __compactRuntime.CircuitContext<PS>,
                    issuerId_0: Uint8Array,
-                   commitment_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, Uint8Array>>;
+                   commitment_0: Uint8Array): __compactRuntime.CircuitResults<PS, Uint8Array>;
   revokeCredential(context: __compactRuntime.CircuitContext<PS>,
                    issuerId_0: Uint8Array,
-                   commitment_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                   commitment_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   updateRevocationRoot(context: __compactRuntime.CircuitContext<PS>,
                        issuerId_0: Uint8Array,
-                       root_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                       root_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   updateIssuanceRoot(context: __compactRuntime.CircuitContext<PS>,
                      issuerId_0: Uint8Array,
-                     root_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                     root_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   proveHoldsCredential(context: __compactRuntime.CircuitContext<PS>,
                        issuerId_0: Uint8Array,
-                       schemaId_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, boolean>>;
+                       schemaId_0: Uint8Array): __compactRuntime.CircuitResults<PS, boolean>;
   proveFieldEquals(context: __compactRuntime.CircuitContext<PS>,
                    issuerId_0: Uint8Array,
                    schemaId_0: Uint8Array,
-                   expectedDegree_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, boolean>>;
+                   expectedDegree_0: Uint8Array): __compactRuntime.CircuitResults<PS, boolean>;
   proveRange(context: __compactRuntime.CircuitContext<PS>,
              issuerId_0: Uint8Array,
              schemaId_0: Uint8Array,
-             minCgpaTimes100_0: bigint): Promise<__compactRuntime.CircuitResults<PS, boolean>>;
+             minCgpaTimes100_0: bigint): __compactRuntime.CircuitResults<PS, boolean>;
   proveAgeOver(context: __compactRuntime.CircuitContext<PS>,
                issuerId_0: Uint8Array,
                schemaId_0: Uint8Array,
-               minAge_0: bigint): Promise<__compactRuntime.CircuitResults<PS, boolean>>;
+               minAge_0: bigint): __compactRuntime.CircuitResults<PS, boolean>;
   proveNotExpired(context: __compactRuntime.CircuitContext<PS>,
                   issuerId_0: Uint8Array,
-                  schemaId_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, boolean>>;
+                  schemaId_0: Uint8Array): __compactRuntime.CircuitResults<PS, boolean>;
 }
 
 export type PureCircuits = {
@@ -133,50 +130,50 @@ export type Circuits<PS> = {
                         cgpaTimes100_0: bigint,
                         issueDate_0: bigint,
                         expiryDate_0: bigint,
-                        salt_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, Uint8Array>>;
+                        salt_0: Uint8Array): __compactRuntime.CircuitResults<PS, Uint8Array>;
   leafFromCommitment(context: __compactRuntime.CircuitContext<PS>,
                      issuerId_0: Uint8Array,
-                     commitment_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, Uint8Array>>;
+                     commitment_0: Uint8Array): __compactRuntime.CircuitResults<PS, Uint8Array>;
   registerIssuer(context: __compactRuntime.CircuitContext<PS>,
                  issuerId_0: Uint8Array,
                  name_0: Uint8Array,
-                 registeredAt_0: bigint): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                 registeredAt_0: bigint): __compactRuntime.CircuitResults<PS, []>;
   setIssuerActive(context: __compactRuntime.CircuitContext<PS>,
                   issuerId_0: Uint8Array,
-                  active_0: boolean): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                  active_0: boolean): __compactRuntime.CircuitResults<PS, []>;
   registerSchema(context: __compactRuntime.CircuitContext<PS>,
                  schemaId_0: Uint8Array,
-                 schemaHash_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                 schemaHash_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   anchorCredential(context: __compactRuntime.CircuitContext<PS>,
                    issuerId_0: Uint8Array,
-                   commitment_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, Uint8Array>>;
+                   commitment_0: Uint8Array): __compactRuntime.CircuitResults<PS, Uint8Array>;
   revokeCredential(context: __compactRuntime.CircuitContext<PS>,
                    issuerId_0: Uint8Array,
-                   commitment_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                   commitment_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   updateRevocationRoot(context: __compactRuntime.CircuitContext<PS>,
                        issuerId_0: Uint8Array,
-                       root_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                       root_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   updateIssuanceRoot(context: __compactRuntime.CircuitContext<PS>,
                      issuerId_0: Uint8Array,
-                     root_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, []>>;
+                     root_0: Uint8Array): __compactRuntime.CircuitResults<PS, []>;
   proveHoldsCredential(context: __compactRuntime.CircuitContext<PS>,
                        issuerId_0: Uint8Array,
-                       schemaId_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, boolean>>;
+                       schemaId_0: Uint8Array): __compactRuntime.CircuitResults<PS, boolean>;
   proveFieldEquals(context: __compactRuntime.CircuitContext<PS>,
                    issuerId_0: Uint8Array,
                    schemaId_0: Uint8Array,
-                   expectedDegree_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, boolean>>;
+                   expectedDegree_0: Uint8Array): __compactRuntime.CircuitResults<PS, boolean>;
   proveRange(context: __compactRuntime.CircuitContext<PS>,
              issuerId_0: Uint8Array,
              schemaId_0: Uint8Array,
-             minCgpaTimes100_0: bigint): Promise<__compactRuntime.CircuitResults<PS, boolean>>;
+             minCgpaTimes100_0: bigint): __compactRuntime.CircuitResults<PS, boolean>;
   proveAgeOver(context: __compactRuntime.CircuitContext<PS>,
                issuerId_0: Uint8Array,
                schemaId_0: Uint8Array,
-               minAge_0: bigint): Promise<__compactRuntime.CircuitResults<PS, boolean>>;
+               minAge_0: bigint): __compactRuntime.CircuitResults<PS, boolean>;
   proveNotExpired(context: __compactRuntime.CircuitContext<PS>,
                   issuerId_0: Uint8Array,
-                  schemaId_0: Uint8Array): Promise<__compactRuntime.CircuitResults<PS, boolean>>;
+                  schemaId_0: Uint8Array): __compactRuntime.CircuitResults<PS, boolean>;
 }
 
 export type Ledger = {
@@ -232,9 +229,8 @@ export declare class Contract<PS = any, W extends Witnesses<PS> = Witnesses<PS>>
   impureCircuits: ImpureCircuits<PS>;
   provableCircuits: ProvableCircuits<PS>;
   constructor(witnesses: W);
-  initialState(context: __compactRuntime.ConstructorContext<PS>): Promise<__compactRuntime.ConstructorResult<PS>>;
+  initialState(context: __compactRuntime.ConstructorContext<PS>): __compactRuntime.ConstructorResult<PS>;
 }
 
 export declare function ledger(state: __compactRuntime.StateValue | __compactRuntime.ChargedState): Ledger;
 export declare const pureCircuits: PureCircuits;
-export declare const expectedVk: Record<string, string>;

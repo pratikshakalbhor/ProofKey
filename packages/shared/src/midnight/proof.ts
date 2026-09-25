@@ -6,6 +6,11 @@
  * checks the resulting artifact. Neither ever emits PII - the artifact carries
  * a single boolean (`proofValid`) plus a digest binding it to the run.
  *
+ * The claim circuits rely on the ledger-anchoring model: the commitment was
+ * bound to the issuer on-chain (ledger-level authority), so the circuit only
+ * proves membership + predicates — no in-circuit signature verification is
+ * performed (that primitive is ledger-v9-only).
+ *
  * When a Midnight proof server is configured (see `createVeriShield`), the
  * same transcript can be upgraded to a real ZK proof; the artifact records
  * this in `zkProven` / `engine`.
@@ -98,7 +103,7 @@ export async function generateProof(request: GenerateProofRequest): Promise<Proo
     valid = await runtime.proveClaim(
       circuit as Parameters<VeriShieldRuntime['proveClaim']>[0],
       args,
-      { payload: credential.payload, salt: credential.salt, signature: credential.signature },
+      { payload: credential.payload, salt: credential.salt },
       blockTime,
     );
   } catch (error) {

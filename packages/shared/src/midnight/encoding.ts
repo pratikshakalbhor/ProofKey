@@ -10,10 +10,21 @@
 import {
   persistentHash,
   CompactTypeBytes,
-  convertNumericToJubjubScalar,
 } from '@midnight-ntwrk/compact-runtime';
 
 const encoder = new TextEncoder();
+
+/**
+ * The Compact `Field` modulus used by the ledger-v8 runtime circuits
+ * (revealed by `ecMulGenerator`/`bigIntToValue` decode bounds and
+ * `bigIntModFr` validation): the ~252-bit prime
+ * `0xe7db4ea6533afa906673b0101343b00a6682093ccc81082d0970e5ed6f72cb7`.
+ * `compact-runtime.bigIntModFr` only *validates* (it rejects inputs at or
+ * above this modulus) — it never reduces — so a 256-bit issuer secret must be
+ * reduced into the field explicitly before it can be used as a scalar.
+ */
+export const FIELD_MODULUS: bigint =
+  0xe7db4ea6533afa906673b0101343b00a6682093ccc81082d0970e5ed6f72cb7n;
 
 /** Canonical byte length for all on-chain commitments and digests. */
 export const BYTES_32 = 32;
@@ -76,22 +87,14 @@ export function bytesToBigIntBE(bytes: Uint8Array): bigint {
 }
 
 /**
- * Derives a canonical JubJub signing scalar from a 32-byte issuer secret.
- * `convertNumericToJubjubScalar` reduces the value into the scalar field, so
- * the result is always a valid `JubjubScalar` for both off-chain signing and
- * the in-circuit `ecMulGenerator` authority check.
+ * Derives the canonical scalar from a 32-byte issuer secret.
+ * Reduces the value into the circuit's `Field` (`% FIELD_MODULUS`), so the
+ * result is always a valid scalar for both the off-chain `ecMulGenerator`
+ * verifying-key derivation and the on-chain `issuerSigningKey()` witness that
+ * the ledger-level authority check uses (identical op: `ecMulGenerator(sk)`).
  */
 export function signingKeyFromSecret(secret: Uint8Array): bigint {
-  return convertNumericToJubjubScalar(bytesToBigIntBE(secret));
-}
-
-/**
- * The message signed by the issuer and verified in-circuit: the commitment
- * reinterpreted byte-per-field as a `Vector<32, Field>` (mirrors the
- * `commitment as Vector<32, Field>` cast in the contract).
- */
-export function commitmentMessageFields(commitment: Uint8Array): bigint[] {
-  return Array.from(commitment, (b) => BigInt(b));
+  return bytesToBigIntBE(secret) % FIELD_MODULUS;
 }
 
 /** Hex-encodes a JubJub point for JSON / UI display. */

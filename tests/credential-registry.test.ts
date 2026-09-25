@@ -2,9 +2,13 @@
  * credential-registry contract tests.
  *
  * Exercise the compiled `credential-registry` Compact circuits through the
- * Midnight circuit simulator: issuer onboarding (JubJub Schnorr key), schema
- * registration, credential issuance + anchoring, all five claim families,
- * rejection of false/forged claims and revocation.
+ * Midnight circuit simulator: issuer onboarding (ledger-level verifying key
+ * `ecMulGenerator(sk)`), schema registration, credential issuance + anchoring,
+ * all five claim families, rejection of false/forged claims and revocation.
+ *
+ * Issuer authority is enforced at the LEDGER level (key-knowledge witness at
+ * anchoring time); the claim circuits verify membership + predicates only —
+ * this variant does NOT verify a signature in-circuit (ledger-v8 toolchain).
  *
  * Should be run from the repo root with `pnpm test` (vitest). Requires the
  * compiled contract bindings (run `pnpm compile:contracts` first).
@@ -14,8 +18,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   createVeriShield,
+  buildCredential,
   fromHex,
   hashCredential,
+  signingKeyFromSecret,
   toHex,
   verifyCredentialSignature,
 } from '@verishield/shared/sdk';
@@ -94,7 +100,7 @@ describe('credential-registry', () => {
     expect(credential.commitment).toHaveLength(32);
     expect(hashCredential(request, credential.salt).commitmentHex).toBe(toHex(credential.commitment));
 
-    // Issuer's JubJub Schnorr signature verifies off-chain.
+    // Issuer's Ed25519 signature (ledger-runtime `signData`) verifies off-chain.
     expect(verifyCredentialSignature(credential, issuerSecret)).toBe(true);
   });
 
@@ -111,7 +117,7 @@ describe('credential-registry', () => {
   });
 
   it('rejects false, tampered and forged claims', async () => {
-    const { vs, credential } = await issueDemoCredential();
+    const { vs, issuerSecret, credential } = await issueDemoCredential();
 
     const falseClaims: Array<{ claim: Claim; blockTime?: number; label: string }> = [
       { claim: { kind: 'AGE_OVER', minAge: 30 }, label: 'AGE_OVER 30 (holder is 25)' },
@@ -132,14 +138,39 @@ describe('credential-registry', () => {
     expect(holds.proofValid).toBe(true);
     expect(vs.verifyProof({ ...holds, binding: 'f'.repeat(64) }).valid).toBe(false);
 
-    // Forged signature: the response is not the issuer's, rejected in-circuit.
-    const forged: BuiltCredential = {
+    // Tampered holder signature: caught by off-chain verification...
+    const tampered: BuiltCredential = {
       ...credential,
-      signature: { ...credential.signature, response: credential.signature.response + 1n },
+      signature:
+        credential.signature.slice(0, -1) + (credential.signature.at(-1) === '0' ? '1' : '0'),
     };
-    const forgedArtifact = await vs.generateProof(forged, { kind: 'HAS_CREDENTIAL' }, now);
-    expect(forgedArtifact.proofValid).toBe(false);
-    expect(vs.verifyProof(forgedArtifact).valid).toBe(false);
+    expect(verifyCredentialSignature(tampered, issuerSecret)).toBe(false);
+    // ...but the anchored claim circuits are signature-blind by design,
+    // because authority was established at the ledger level when anchoring.
+    const tamperedArtifact = await vs.generateProof(tampered, { kind: 'HAS_CREDENTIAL' }, now);
+    expect(tamperedArtifact.proofValid).toBe(true);
+    expect(vs.verifyProof(tamperedArtifact).valid).toBe(true);
+
+    // A credential whose commitment was never anchored cannot be proven:
+    // the claim circuits require membership in the on-chain issuance registry.
+    const neverAnchored = buildCredential(demoRequest(), issuerSecret);
+    const unanchoredArtifact = await vs.generateProof(neverAnchored, { kind: 'HAS_CREDENTIAL' }, now);
+    expect(unanchoredArtifact.proofValid).toBe(false);
+    expect(vs.verifyProof(unanchoredArtifact).valid).toBe(false);
+    expect(unanchoredArtifact.failureReason).toBeTruthy();
+
+    // The ledger-level authority check forbids anchoring under a key the
+    // caller does not control.
+    const attackerSecret = new Uint8Array(32).map((_, i) => i + 2); // deterministic different secret
+    await vs.registerIssuer({ issuerName: 'Forge University', secretKey: attackerSecret, registeredAt: now });
+    expect(() =>
+      vs.runtime.anchorCredential(
+        fromHex(credential.disclosure.issuerId),
+        neverAnchored.commitment,
+        now,
+        signingKeyFromSecret(attackerSecret),
+      ),
+    ).toThrow('Caller is not the registered issuer');
   });
 
   it('revokes a credential so it can no longer be proven', async () => {

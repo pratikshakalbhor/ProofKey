@@ -70,20 +70,28 @@ export interface CredentialPayloadValue {
   expiryDate: bigint;
 }
 
-/**
- * Structural mirror of the runtime's `JubjubPoint`. Declared structurally so
+/** Structural mirror of the runtime's `JubjubPoint`. Declared structurally so
  * the browser-safe entrypoint never imports the Midnight WASM runtime.
- */
+ *
+ * This is the issuer's verifying key stored ON-CHAIN (`ecMulGenerator(sk)`),
+ * the basis for the ledger-level authority check that anchors credentials. */
 export interface JubjubPointValue {
   x: bigint;
   y: bigint;
 }
 
-/** Structural mirror of the runtime's `JubjubSchnorrSignature`. */
-export interface JubjubSchnorrSignatureValue {
-  announcement: JubjubPointValue;
-  response: bigint;
-}
+/**
+ * The issuer's Ed25519 signature over the credential commitment, produced and
+ * verified with the ledger runtime's own `signData` / `verifySignature`
+ * primitives. Hex-encoded (128 chars).
+ *
+ * Unlike the v9 in-circuit variant, the claim circuits do NOT verify a
+ * signature inside the ZK proof: issuer endorsement is enforced at the LEDGER
+ * level when the commitment is anchored (the caller proves control of the
+ * scalar behind the registered verifying key). The Ed25519 signature is the
+ * portable, offline-checkable endorsement artifact the holder carries.
+ */
+export type Ed25519SignatureHex = string;
 
 /** Hex-encoded JubJub point, safe for JSON / UI display. */
 export interface JubjubPointHex {
@@ -100,7 +108,7 @@ export interface CredentialDisclosure {
   schemaName: string;
   commitment: string;
   leaf: string;
-  /** The issuer's registered JubJub verifying key. */
+  /** The issuer's registered JubJub verifying key (as stored on-chain). */
   issuerVerifyingKey: JubjubPointHex;
   issuedAt: number;
   expiresAt: number;
@@ -113,11 +121,14 @@ export interface BuiltCredential {
   commitment: Uint8Array;
   leaf: Uint8Array;
   /**
-   * The issuer's JubJub Schnorr signature over the credential commitment.
-   * Verified *in-circuit* by every claim circuit against the issuer's
-   * registered verifying key.
+   * The issuer's Ed25519 signature over the credential commitment, created
+   * with the ledger runtime's `signData`. Verified off-chain with
+   * `verifyCredentialSignature`; issuer authority over the issued commitment
+   * is enforced on-chain by the ledger-level anchoring (knowledge of the
+   * scalar behind the registered `ecMulGenerator` key), not inside the ZK
+   * claim circuits.
    */
-  signature: JubjubSchnorrSignatureValue;
+  signature: Ed25519SignatureHex;
   /** Public, PII-free projection. Safe to show in the UI. */
   disclosure: CredentialDisclosure;
 }

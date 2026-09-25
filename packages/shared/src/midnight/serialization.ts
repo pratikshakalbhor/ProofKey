@@ -27,18 +27,14 @@ export interface SerializedCredentialPayload {
   expiryDate: string;
 }
 
-export interface SerializedJubjubSignature {
-  announcement: { x: string; y: string };
-  response: string;
-}
-
 export interface SerializedCredential {
   version: 1;
   payload: SerializedCredentialPayload;
   salt: string;
   commitment: string;
   leaf: string;
-  signature: SerializedJubjubSignature;
+  /** The issuer's Ed25519 signature over the commitment (hex). */
+  signature: string;
   disclosure: CredentialDisclosure;
 }
 
@@ -75,13 +71,7 @@ export function serializeCredential(credential: BuiltCredential): SerializedCred
     salt: bytesToHex(salt),
     commitment: bytesToHex(commitment),
     leaf: bytesToHex(leaf),
-    signature: {
-      announcement: {
-        x: signature.announcement.x.toString(),
-        y: signature.announcement.y.toString(),
-      },
-      response: signature.response.toString(),
-    },
+    signature: signature,
     disclosure,
   };
 }
@@ -106,13 +96,7 @@ export function deserializeCredential(serialized: SerializedCredential): BuiltCr
     salt: hexToBytes(serialized.salt),
     commitment: hexToBytes(serialized.commitment),
     leaf: hexToBytes(serialized.leaf),
-    signature: {
-      announcement: {
-        x: BigInt(serialized.signature.announcement.x),
-        y: BigInt(serialized.signature.announcement.y),
-      },
-      response: BigInt(serialized.signature.response),
-    },
+    signature: serialized.signature,
     disclosure: serialized.disclosure,
   };
 }

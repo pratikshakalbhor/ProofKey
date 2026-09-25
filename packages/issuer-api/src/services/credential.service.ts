@@ -6,7 +6,6 @@ import {
   type CredentialIssuanceRequest,
   type SerializedCredential,
   type SerializedCredentialPayload,
-  type SerializedJubjubSignature,
 } from '@verishield/shared';
 import { db } from '../db/client.js';
 import {
@@ -413,7 +412,7 @@ export async function claimCredential(token: string): Promise<ClaimedCredential>
     salt: row.salt,
     commitment: row.payloadHash,
     leaf: row.leaf,
-    signature: JSON.parse(row.signature) as SerializedJubjubSignature,
+    signature: JSON.parse(row.signature) as string,
     disclosure,
   };
 

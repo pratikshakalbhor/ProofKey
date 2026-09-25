@@ -198,7 +198,6 @@ export {
   toUnixSeconds,
   equalsBytes,
   signingKeyFromSecret,
-  commitmentMessageFields,
   pointToHex,
 } from './encoding.js';
 
@@ -213,5 +212,4 @@ export {
   deserializeCredential,
   type SerializedCredential,
   type SerializedCredentialPayload,
-  type SerializedJubjubSignature,
 } from './serialization.js';

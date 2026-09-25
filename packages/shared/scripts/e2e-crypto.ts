@@ -4,13 +4,16 @@
  * Runs the full lifecycle against the *compiled* Compact circuits via the
  * Midnight circuit simulator — no devnet, indexer or proof server required:
  *
- *   register issuer (JubJub verifying key) -> register schema -> issue
- *   credential (issuer JubJub Schnorr signature) -> prove each of the five
- *   claims (signature verified IN-CIRCUIT) -> verify each -> reject false and
+ *   register issuer (ledger-level verifying key `ecMulGenerator(sk)`) ->
+ *   register schema -> issue credential (issuer Ed25519-signs the commitment,
+ *   then anchors the issuance leaf with the key-knowledge authority witness)
+ *   -> prove each of the five claims (membership + predicates only; NO
+ *   in-circuit signature — this v8 ledger-anchoring variant predates the
+ *   in-circuit JubJub Schnorr builtins) -> verify each -> reject false and
  *   forged claims -> revoke -> confirm the revoked credential can no longer be
  *   proven.
  *
- * Run with: `pnpm test:e2e-crypto`
+ * Run with: `npm run test:e2e-crypto`
  */
 
 import {
@@ -21,8 +24,9 @@ import {
   toHex,
   fromHex,
   verifyCredentialSignature,
+  signingKeyFromSecret,
 } from '../src/sdk.js';
-import type { BuiltCredential, Claim, ClaimKind, ProofArtifact } from '../src/types/verishield.js';
+import type { Claim, ClaimKind, ProofArtifact } from '../src/types/verishield.js';
 import { decodeField } from '../src/midnight/encoding.js';
 
 const YEAR = 365.25 * 24 * 60 * 60;
@@ -47,13 +51,13 @@ function section(title: string): void {
 
 async function main(): Promise<void> {
   console.log('\x1b[1m\x1b[35mVeriShield\x1b[0m — end-to-end credential lifecycle');
-  console.log('\x1b[90mengine: Midnight circuit simulator (real compiled circuits, in-circuit JubJub Schnorr)\x1b[0m');
+  console.log('\x1b[90mengine: Midnight circuit simulator (real compiled circuits, ledger-anchoring)\x1b[0m');
 
   const vs = await createVeriShield();
   const issuerSecret = randomBytes(32);
 
   // ------------------------------------------------------------------
-  section('1. Issuer onboarding (JubJub Schnorr key pair)');
+  section('1. Issuer onboarding (ledger-level verifying key)');
   const { issuerId, verifyingKey } = await vs.registerIssuer({
     issuerName: 'University of Midnight',
     secretKey: issuerSecret,
@@ -97,11 +101,8 @@ async function main(): Promise<void> {
   const built = await vs.issueCredential(request, issuerSecret);
   check('commitment is 32 bytes', built.commitment.length === 32, toHex(built.commitment).slice(0, 20) + '…');
   check('credential anchored on-chain', vs.publicLedger().issuanceRoot !== '0'.repeat(64));
-  check('issuer JubJub signature verifies (off-chain)', verifyCredentialSignature(built, issuerSecret));
-  check(
-    'signature is a JubJub Schnorr signature',
-    built.signature.announcement.x !== 0n && built.signature.response !== 0n,
-  );
+  check('issuer Ed25519 signature verifies (off-chain)', verifyCredentialSignature(built, issuerSecret));
+  check('signature is a 64-byte Ed25519 signature', /^[0-9a-f]{128}$/.test(built.signature));
   check(
     'hashCredential matches buildCredential',
     hashCredential(request, built.salt).commitmentHex === toHex(built.commitment),
@@ -163,28 +164,53 @@ async function main(): Promise<void> {
   check('tampered binding rejected', !vs.verifyProof(tampered).valid);
 
   // ------------------------------------------------------------------
-  section('5. In-circuit issuer-signature enforcement');
-  const forgedSignature: BuiltCredential = {
-    ...built,
-    signature: { ...built.signature, response: built.signature.response + 1n },
-  };
-  const forgedArtifact = await vs.generateProof(forgedSignature, { kind: 'HAS_CREDENTIAL' }, now);
+  section('5. Ledger-anchoring enforcement (no in-circuit signature)');
+
+  // The holder signature is verified off-chain with the ledger runtime's own
+  // `verifySignature` primitive. Tampering with it is caught there.
+  const tamperedSignature = built.signature.slice(0, -1) + (built.signature.at(-1) === '0' ? '1' : '0');
   check(
-    'forged signature rejected in-circuit',
-    !forgedArtifact.proofValid && !vs.verifyProof(forgedArtifact).valid,
-    forgedArtifact.failureReason ?? 'unexpectedly accepted',
+    'tampered holder signature fails off-chain verification',
+    !verifyCredentialSignature({ commitment: built.commitment, signature: tamperedSignature }, issuerSecret),
   );
 
-  const attackerSecret = randomBytes(32);
-  const attackerSigned = buildCredential({ ...request, salt: built.salt }, attackerSecret);
-  check('attacker reproduces the same commitment', toHex(attackerSigned.commitment) === toHex(built.commitment));
-  const impostor: BuiltCredential = { ...built, signature: attackerSigned.signature };
-  const impostorArtifact = await vs.generateProof(impostor, { kind: 'HAS_CREDENTIAL' }, now);
-  check(
-    'signature from a non-issuer key rejected in-circuit',
-    !impostorArtifact.proofValid && !vs.verifyProof(impostorArtifact).valid,
-    impostorArtifact.failureReason ?? 'unexpectedly accepted',
+  // The claim circuits are anchored and therefore signature-blind by design:
+  // a tampered holder signature cannot invalidate an anchored credential's
+  // proofs (authority came from the on-chain anchoring, not the signature).
+  const tamperedHolds = await vs.generateProof(
+    { ...built, signature: tamperedSignature },
+    { kind: 'HAS_CREDENTIAL' },
+    now,
   );
+  check('claim circuits are signature-blind by design', tamperedHolds.proofValid && vs.verifyProof(tamperedHolds).valid);
+
+  // The real threat model: only commitments anchored under the issuer's
+  // ledger-level key can be proven. A never-anchored commitment is rejected.
+  const neverAnchored = buildCredential(request, issuerSecret);
+  check('new random salt yields a different commitment', toHex(neverAnchored.commitment) !== toHex(built.commitment));
+  const unanchoredArtifact = await vs.generateProof(neverAnchored, { kind: 'HAS_CREDENTIAL' }, now);
+  check(
+    'unanchored credential rejected by claim circuits',
+    !unanchoredArtifact.proofValid && !vs.verifyProof(unanchoredArtifact).valid,
+    unanchoredArtifact.failureReason ?? 'unexpectedly accepted',
+  );
+
+  // An attacker that controls their own key cannot anchor to a victim issuer:
+  // the ledger-level authority check requires the scalar behind the victim's
+  // registered verifying key.
+  const attackerSecret = randomBytes(32);
+  await vs.registerIssuer({
+    issuerName: 'Forge University',
+    secretKey: attackerSecret,
+    registeredAt: now,
+  });
+  let authorityViolation = false;
+  try {
+    await vs.runtime.anchorCredential(fromHex(issuerId), neverAnchored.commitment, now, signingKeyFromSecret(attackerSecret));
+  } catch (error) {
+    authorityViolation = String(error instanceof Error ? error.message : error).includes('Caller is not the registered issuer');
+  }
+  check('unauthorized issuer cannot anchor to a victim issuer', authorityViolation);
 
   // ------------------------------------------------------------------
   section('6. Revocation');

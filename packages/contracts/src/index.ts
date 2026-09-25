@@ -32,11 +32,12 @@ export const COMPACT_CONTRACT_NAMES = ['credential-registry'] as const;
 
 export type CompactContractName = (typeof COMPACT_CONTRACT_NAMES)[number];
 
-/** Compiler / language / runtime versions this build targets. */
+/** Compiler / language / runtime versions this build targets (ledger v8). */
 export const COMPACT_VERSIONS = {
-  compiler: '0.34.0',
-  language: '0.26.0',
-  runtime: '0.19.0',
+  compiler: '0.31.1',
+  language: '0.23.0',
+  runtime: '0.16.0',
+  ledger: 'ledger-8.0.2',
 } as const;
 
 /** Name of the only on-chain ledger field a verifier ever reads. */
