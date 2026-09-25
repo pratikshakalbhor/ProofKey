@@ -16,9 +16,15 @@
     "@midnight-ntwrk/dapp-connector-api": "4.0.1",
     "@midnight-ntwrk/ledger-v8": "8.1.2",
     "@midnight-ntwrk/midnight-js-contracts": "4.1.1",
+    "@midnight-ntwrk/midnight-js-network-id": "4.1.1",
     "@midnight-ntwrk/midnight-js-types": "4.1.1",
+    "@midnight-ntwrk/midnight-js-utils": "4.1.1",
+    "@midnight-ntwrk/onchain-runtime-v3": "3.1.1",
     "@verishield/contracts": "*",
     "@verishield/shared": "*",
+    "buffer": "^6.0.3",
+    "jsqr": "^1.4.0",
+    "qrcode": "^1.5.4",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-router-dom": "^6.28.0",
@@ -28,6 +34,7 @@
     "lucide-react": "^0.460.0"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",

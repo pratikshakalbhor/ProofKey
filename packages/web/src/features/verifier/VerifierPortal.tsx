@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ScanSearch, Lock, ShieldCheck, Clock, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { ScanSearch, Lock, ShieldCheck, Clock, ArrowLeft, AlertTriangle, FileJson } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import type { ProofArtifact } from '@verishield/shared';
 import { PortalShell } from '@/components/layout/PortalShell';
@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { CopyableHash } from '@/components/ui/CopyableHash';
 import { useToast } from '@/components/ui/Toast';
-import { useProofStore } from '@/stores/proofStore';
+import { useProofStore, publishArtifact } from '@/stores/proofStore';
 import { OnChainPanel } from '@/components/onchain/OnChainPanel';
 import { describeClaim } from '@/lib/midnight/claims';
 import type { VerifyProofResult } from '@verishield/shared/sdk';
@@ -22,6 +22,32 @@ interface VerifyLogEntry {
 }
 
 const sharedRows = ['Full name', 'Roll number', 'Marks / CGPA', 'Date of birth', 'Issuer details'];
+
+/**
+ * Parse + minimally validate an exported proof artifact from the Holder console.
+ * Only public fields — never private witness material.
+ */
+function parseProofJson(raw: string): ProofArtifact {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error('Not valid JSON.');
+  }
+  if (typeof parsed !== 'object' || parsed === null) {
+    throw new Error('Expected a proof artifact object.');
+  }
+  const artifact = parsed as Record<string, unknown>;
+  const required = ['binding', 'claim', 'proofValid', 'zkProven', 'verifiedAt', 'engine'];
+  const missing = required.filter((key) => artifact[key] === undefined);
+  if (missing.length > 0) {
+    throw new Error(`Missing fields in proof artifact: ${missing.join(', ')}.`);
+  }
+  if (typeof artifact.proofValid !== 'boolean' || typeof artifact.binding !== 'string') {
+    throw new Error('Malformed proof artifact (proofValid/binding wrong type).');
+  }
+  return parsed as ProofArtifact;
+}
 
 export function VerifierPortal() {
   return (
@@ -40,20 +66,47 @@ function VerifierPanel() {
   const { toast } = useToast();
   const reduceMotion = useReducedMotion();
   const artifacts = useProofStore((s) => s.artifacts);
-  const ledger = useProofStore((s) => s.ledger);
   const verifyProof = useProofStore((s) => s.verifyProof);
-  const boot = useProofStore((s) => s.boot);
 
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [phase, setPhase] = useState<VerifyPhase>('idle');
   const [log, setLog] = useState<VerifyLogEntry[]>([]);
   const [result, setResult] = useState<VerifyProofResult | null>(null);
-
-  useEffect(() => {
-    void boot();
-  }, [boot]);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
 
   const selected = selectedIndex === null ? null : artifacts[selectedIndex] ?? null;
+
+  const runImport = () => {
+    const raw = importText.trim();
+    if (!raw) {
+      setImportError('Paste a proof JSON file first.');
+      return;
+    }
+    let artifact: ProofArtifact;
+    try {
+      artifact = parseProofJson(raw);
+    } catch (importErr) {
+      setImportError(importErr instanceof Error ? importErr.message : String(importErr));
+      return;
+    }
+    const duplicates = artifacts.filter((a) => a.binding === artifact.binding && a.verifiedAt === artifact.verifiedAt);
+    if (duplicates.length > 0) {
+      setImportError('That proof is already in the list.');
+      return;
+    }
+    publishArtifact(artifact);
+    const index = 0;
+    setSelectedIndex(index);
+    setImportOpen(false);
+    setImportText('');
+    setImportError(null);
+    toast('Proof imported', {
+      description: `${describeClaim({ kind: artifact.claim })} · engine ${artifact.engine}`,
+      tone: 'info',
+    });
+  };
 
   const runVerification = async () => {
     if (!selected) {
@@ -143,6 +196,18 @@ function VerifierPanel() {
                   </select>
                 </div>
                 <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setImportOpen((open) => !open);
+                    setImportError(null);
+                  }}
+                  className="shrink-0 text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                >
+                  <FileJson className="h-4 w-4" aria-hidden />
+                  Import proof JSON
+                </Button>
+                <Button
                   onClick={() => void runVerification()}
                   disabled={!selected || phase === 'verifying'}
                   loading={phase === 'verifying'}
@@ -151,9 +216,34 @@ function VerifierPanel() {
                   Verify
                 </Button>
               </div>
+              {importOpen && (
+                <div className="mt-3 space-y-2">
+                  <textarea
+                    value={importText}
+                    onChange={(e) => setImportText(e.target.value)}
+                    placeholder='Paste a proof exported from the Holder console ("Copy proof")…'
+                    spellCheck={false}
+                    className="min-h-[120px] w-full rounded-xl border border-white/8 bg-base-100/60 px-3.5 py-2.5 font-mono text-[11px] text-slate-300 placeholder:text-slate-600 focus:border-cyan-400/40 focus:outline-none focus-ring"
+                  />
+                  {importError && (
+                    <p className="break-words rounded-lg border border-rose-500/20 bg-rose-500/5 p-2 font-mono text-[11px] text-rose-300">
+                      {importError}
+                    </p>
+                  )}
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[11px] text-slate-500">
+                      Keys are never shared — this is the public artifact.
+                    </p>
+                    <Button size="sm" variant="secondary" onClick={runImport}>
+                      Add proof
+                    </Button>
+                  </div>
+                </div>
+              )}
               {artifacts.length === 0 && (
                 <p className="mt-2 text-xs text-slate-500">
-                  Generate a proof in the Holder portal — it appears here automatically.
+                  Generate a proof in the Holder portal — it appears here automatically — or import a
+                  proof JSON file copied from any device.
                 </p>
               )}
             </div>
@@ -278,6 +368,12 @@ function VerifierPanel() {
                         <MetaRow label="engine">
                           <span className="hash-block text-amber-300">{selected.engine}</span>
                         </MetaRow>
+                        {selected.onChain && (
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-xs text-slate-500">anchor tx</span>
+                            <CopyableHash value={selected.onChain.txHash} length="short" />
+                          </div>
+                        )}
                         <MetaRow label="zk-proven">{String(selected.zkProven)}</MetaRow>
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-xs text-slate-500">binding</span>
@@ -287,10 +383,10 @@ function VerifierPanel() {
                     </div>
                   )}
 
-                  {!selected?.zkProven && (
+                  {selected?.engine === 'circuit-simulator' && (
                     <p className="mt-4 flex items-center gap-1.5 text-xs text-amber-300/80">
                       <AlertTriangle className="h-3 w-3" aria-hidden />
-                      Circuit-simulator transcript. A proof server is required for a real SNARK.
+                      Structural check only — a real SNARK requires the on-chain proof pipeline.
                     </p>
                   )}
 
@@ -388,12 +484,10 @@ function VerifierPanel() {
                   of birth. The only field returned by the verifier contract is{' '}
                   <span className="hash-block text-cyan-300">proofValid</span>.
                 </p>
-                {ledger && (
-                  <p className="mt-2 text-[10px] text-slate-500">
-                    simulator ledger · verifications: {ledger.verificationCount} · last:{' '}
-                    {String(ledger.lastProofValid)}
-                  </p>
-                )}
+                <p className="mt-2 text-[10px] text-slate-500">
+                  Each proof is bound to the credential, claim and anchor — stateless verification,
+                  on-chain evidence when the proof was produced through a 1AM wallet.
+                </p>
               </div>
             </div>
           </div>
@@ -403,7 +497,7 @@ function VerifierPanel() {
   );
 }
 
-function FadeInMaybe({ children }: { children: React.ReactNode }) {
+function FadeInMaybe({ children }: { children: ReactNode }) {
   const reduceMotion = useReducedMotion();
   return (
     <motion.div
@@ -416,7 +510,7 @@ function FadeInMaybe({ children }: { children: React.ReactNode }) {
   );
 }
 
-function MetaRow({ label, children }: { label: string; children: React.ReactNode }) {
+function MetaRow({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <span className="text-xs text-slate-500">{label}</span>

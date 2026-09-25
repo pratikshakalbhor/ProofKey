@@ -12,6 +12,10 @@ import {
 import { motion, useReducedMotion } from 'framer-motion';
 import { StaggerChildren, StaggerItem, FadeIn, SlideUp } from '@/components/motion';
 import { Card } from '@/components/ui/Card';
+import { ConnectCta } from '@/components/wallet/ConnectCta';
+import { LandingWalletPanel } from '@/components/wallet/LandingWalletPanel';
+import { useWallet } from '@/components/wallet/WalletProvider';
+import { cn } from '@/lib/utils';
 
 const containerVariants = {
   hidden: {},
@@ -186,18 +190,12 @@ export function LandingPage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.34 }}
-            className="mt-8 flex flex-wrap items-center justify-center gap-3"
+            className="mt-8 flex flex-col items-center justify-center gap-4"
           >
-            <a
-              href="#roles"
-              className="inline-flex h-12 items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 px-6 text-sm font-semibold text-white shadow-xl shadow-indigo-950/50 transition-all hover:from-indigo-500 hover:to-violet-500 hover:shadow-indigo-900/50"
-            >
-              Enter the demo
-              <ArrowRight className="h-4 w-4" />
-            </a>
+            <ConnectCta />
             <a
               href="#how"
-              className="glass glass-interactive inline-flex h-12 items-center gap-2 rounded-xl px-6 text-sm font-medium text-slate-200"
+              className="glass glass-interactive inline-flex h-11 items-center gap-2 rounded-xl px-6 text-sm font-medium text-slate-200"
             >
               How it works
             </a>
@@ -269,6 +267,29 @@ export function LandingPage() {
         </section>
       </div>
 
+      {/* Wallet — the ONE place the app connects 1AM */}
+      <section id="wallet" className="relative z-10 border-t border-white/5 py-20">
+        <div className="mx-auto max-w-6xl px-6">
+          <SlideUp>
+            <div className="mb-10 text-center">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-400">
+                One session
+              </span>
+              <h2 className="mt-2 text-3xl font-bold text-white sm:text-4xl">
+                Connect once. Then choose a role.
+              </h2>
+              <p className="mx-auto mt-3 max-w-xl text-sm text-slate-400">
+                Connect once on Midnight Preprod. Your session is shared across Issuer, Holder,
+                and Verifier.
+              </p>
+            </div>
+          </SlideUp>
+          <FadeIn className="mx-auto max-w-2xl">
+            <LandingWalletPanel />
+          </FadeIn>
+        </div>
+      </section>
+
       {/* How it works */}
       <section id="how" className="relative z-10 border-t border-white/5 py-20">
         <div className="mx-auto max-w-6xl px-6">
@@ -333,39 +354,14 @@ export function LandingPage() {
           >
             {roleCards.map((role) => (
               <motion.div key={role.title} variants={itemVariants}>
-                <Link to={role.path} className="block h-full">
-                  <Card
-                    interactive
-                    className={`group relative flex h-full flex-col overflow-hidden bg-gradient-to-br p-7 ${role.gradient}`}
-                  >
-                    {/* hover glow */}
-                    <div
-                      aria-hidden
-                      className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-indigo-500/10 opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-100"
-                    />
-                    <div className="flex items-start justify-between">
-                      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/8 text-slate-300 transition-colors group-hover:text-white">
-                        <role.icon className="h-6 w-6" aria-hidden />
-                      </span>
-                      <span className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500 transition-colors group-hover:border-indigo-400/30 group-hover:text-indigo-300">
-                        {role.badge}
-                      </span>
-                    </div>
-                    <h3 className="mt-6 text-xl font-bold text-white transition-colors group-hover:text-indigo-200">
-                      {role.title}
-                    </h3>
-                    <p className="mt-2.5 flex-1 text-sm leading-relaxed text-slate-400">
-                      {role.description}
-                    </p>
-                    <span className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-slate-400 transition-colors group-hover:text-indigo-300">
-                      Enter portal
-                      <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                    </span>
-                  </Card>
-                </Link>
+                <RoleCard role={role} />
               </motion.div>
             ))}
           </motion.div>
+
+          <p className="mt-8 text-center text-xs text-slate-500">
+            <RoleStatusHint />
+          </p>
         </div>
       </section>
 
@@ -387,4 +383,83 @@ export function LandingPage() {
       </footer>
     </div>
   );
+}
+
+function RoleCard({ role }: { role: (typeof roleCards)[number] }) {
+  const { status } = useWallet();
+  const connected = status === 'connected';
+
+  return (
+    <div className="h-full">
+      {connected ? (
+        <Link to={role.path} className="block h-full" aria-label={`${role.title} portal`}>
+          <RoleCardBody role={role} connected />
+        </Link>
+      ) : (
+        <div
+          className="block h-full cursor-not-allowed"
+          title="Connect your 1AM wallet to unlock the portals"
+          aria-disabled="true"
+        >
+          <RoleCardBody role={role} connected={false} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RoleCardBody({ role, connected }: { role: (typeof roleCards)[number]; connected: boolean }) {
+  return (
+    <Card
+      interactive={connected}
+      className={cn(
+        'relative flex h-full flex-col overflow-hidden bg-gradient-to-br p-7',
+        role.gradient,
+        connected ? 'group' : 'opacity-70',
+      )}
+    >
+      {/* hover glow */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-indigo-500/10 opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-100"
+      />
+      <div className="flex items-start justify-between">
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/8 text-slate-300 transition-colors group-hover:text-white">
+          <role.icon className="h-6 w-6" aria-hidden />
+        </span>
+        {connected ? (
+          <span className="rounded-full border border-white/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500 transition-colors group-hover:border-indigo-400/30 group-hover:text-indigo-300">
+            {role.badge}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-slate-500">
+            <Lock className="h-3 w-3" aria-hidden />
+            Locked
+          </span>
+        )}
+      </div>
+      <h3 className="mt-6 text-xl font-bold text-white transition-colors group-hover:text-indigo-200">
+        {role.title}
+      </h3>
+      <p className="mt-2.5 flex-1 text-sm leading-relaxed text-slate-400">{role.description}</p>
+      {connected ? (
+        <span className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-slate-400 transition-colors group-hover:text-indigo-300">
+          Enter portal
+          <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+        </span>
+      ) : (
+        <span className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-slate-500">
+          <Lock className="h-3.5 w-3.5" aria-hidden />
+          Connect 1AM to unlock
+        </span>
+      )}
+    </Card>
+  );
+}
+
+function RoleStatusHint(): string {
+  const { status } = useWallet();
+  return status === 'connected'
+    ? 'You are connected — pick a portal. Your session is reused everywhere; no portal reconnects.'
+    : 'Choose your role after connecting your 1AM wallet above.';
 }

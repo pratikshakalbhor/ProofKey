@@ -30,6 +30,7 @@ import {
 import {
   generateProof as generateProofImpl,
   verifyProof as verifyProofImpl,
+  computeProofBinding,
   CLAIM_KIND_LABELS,
   type GenerateProofRequest,
   type VerifyProofResult,
@@ -180,7 +181,7 @@ export const hashCredential = hashCredentialImpl;
 export const generateProof = generateProofImpl;
 export const verifyProof = verifyProofImpl;
 
-export { CLAIM_KIND_LABELS };
+export { CLAIM_KIND_LABELS, computeProofBinding };
 export type { GenerateProofRequest, VerifyProofResult };
 
 export {
@@ -203,6 +204,7 @@ export {
 
 export {
   verifyCredentialSignature,
+  verifyCredentialIntegrity,
   describeCredential,
   issuerVerifyingKeyFromSecret,
 } from './credential.js';

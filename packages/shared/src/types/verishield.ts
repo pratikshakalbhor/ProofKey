@@ -151,16 +151,27 @@ export interface ProofArtifact {
   schemaId: string;
   /** Digest binding the artifact to the proof transcript output. */
   binding: string;
-  /** Whether a real ZK proof was produced by a proof server. */
+  /** Whether a real ZK proof was produced (proof server or on-chain proving). */
   zkProven: boolean;
   engine: ProofEngineKind;
   timings: ProofTimings;
   verifiedAt: number;
   /** Present only when the circuit rejected the claim. */
   failureReason?: string;
+  /**
+   * Indexer-confirmed on-chain evidence for `engine: 'on-chain'` proofs —
+   * the claim circuit transaction the connected wallet proved and broadcast
+   * to the REAL deployed Preprod contract. The verifier may re-check it.
+   */
+  onChain?: {
+    txHash: string;
+    blockHeight: number;
+    entryPoint: string;
+    confirmed: true;
+  };
 }
 
-export type ProofEngineKind = 'circuit-simulator' | 'proof-server';
+export type ProofEngineKind = 'circuit-simulator' | 'proof-server' | 'on-chain';
 
 export type ProofOutcome =
   | { ok: true; artifact: ProofArtifact }

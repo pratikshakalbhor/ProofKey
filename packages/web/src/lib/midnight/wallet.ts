@@ -7,7 +7,17 @@
  * advertises a stable `window.midnight['1am']`, which we prefer when present.
  *
  * Reference: https://docs.midnight.network/api-reference/dapp-connector
+ *
+ * NOTE (session restoration): the injected `InitialAPI` surface exposes only
+ * `connect(networkId)` — there is no non-interactive "restore an existing
+ * authorization" method. `getConnectionStatus()` exists only on the
+ * `ConnectedAPI` returned *after* a successful connect. This means a browser
+ * refresh cannot silently rebuild a session without a user gesture; the
+ * wallet provider therefore restores nothing automatically and surfaces a
+ * neutral "Reconnect 1AM" action instead.
  */
+
+import { configuredNetwork } from './config';
 
 export const ONE_AM_INSTALL_URL =
   'https://chromewebstore.google.com/detail/bphnkdkcnfhompoegfpgnkidcjfbojjp';
@@ -113,10 +123,14 @@ export function selectWallet(): { info: WalletInfo; api: InitialWalletApi } | nu
   return oneAm ?? wallets[0];
 }
 
-/** Target network from Vite env; defaults to the local undeployed network. */
+/**
+ * Target network for wallet connections. Delegates to the single network
+ * source of truth in `config.ts`, which defaults to `preprod` (never the
+ * local `undeployed` network) so wallet sessions always target the real
+ * Midnight Preprod unless explicitly overridden via `VITE_NETWORK`.
+ */
 export function targetNetworkId(): string {
-  const configured = import.meta.env?.VITE_NETWORK?.trim();
-  return configured && configured.length > 0 ? configured : 'undeployed';
+  return configuredNetwork();
 }
 
 export function openInstallPage(): void {

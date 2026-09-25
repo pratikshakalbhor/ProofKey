@@ -84,6 +84,12 @@ function bindingDigest(claim: ClaimKind, issuerId: Uint8Array, schemaId: Uint8Ar
 }
 
 /**
+ * Public digest helper — lets the holder build a proof artifact whose binding
+ * matches exactly what `verifyProof` recomputes (identical byte encoding).
+ */
+export const computeProofBinding = bindingDigest;
+
+/**
  * Generates a proof for one claim against a credential. Resolves with an
  * artifact even when the circuit rejects the claim (`proofValid: false`),
  * so callers can show an honest "not proven" result instead of erroring.

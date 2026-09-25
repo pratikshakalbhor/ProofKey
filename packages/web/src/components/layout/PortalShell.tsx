@@ -6,6 +6,7 @@ import { useState, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { useRoleStore, type Role } from '@/stores/roleStore';
 import { useNetworkStore } from '@/stores/networkStore';
+import { WalletStatus } from '@/components/wallet/WalletStatus';
 import { NETWORK_LABELS } from '@verishield/shared';
 
 interface PortalShellProps {
@@ -130,6 +131,7 @@ export function PortalShell({ role, title, description, accent, children }: Port
             </div>
 
             <div className="flex items-center gap-3">
+              <WalletStatus />
               <NetworkIndicator />
               <div className="relative sm:hidden">
                 <button

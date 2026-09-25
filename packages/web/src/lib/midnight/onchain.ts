@@ -24,16 +24,15 @@ import {
   createCallTxOptions,
 } from '@midnight-ntwrk/midnight-js-contracts';
 import { createProofProvider } from '@midnight-ntwrk/midnight-js-types';
+import { parseCoinPublicKeyToHex } from '@midnight-ntwrk/midnight-js-utils';
+import { setNetworkId, getNetworkId } from '@midnight-ntwrk/midnight-js-network-id';
 import {
-  ContractState,
+  ContractState as OnChainContractState,
+} from '@midnight-ntwrk/onchain-runtime-v3';
+import {
   LedgerParameters,
   ZswapChainState,
 } from '@midnight-ntwrk/ledger-v8';
-import {
-  MidnightBech32m,
-  ShieldedCoinPublicKey,
-  ShieldedEncryptionPublicKey,
-} from '@midnight-ntwrk/wallet-sdk-address-format';
 import { Contract, type Witnesses } from '@verishield/contracts';
 import {
   configuredContractAddress,
@@ -45,9 +44,12 @@ import {
   fetchContractSummary,
   fetchLedgerParameters,
   fetchLatestContractAction,
+  type ContractAction,
+  type ContractCallAction,
 } from './indexer';
 import { veriShieldZKConfigProvider, walletKeyMaterialProvider, type ProvableCircuitOfContract } from './zk-key-provider';
-import type { MidnightConnectedApi, PreprodSession } from './wallet';
+import { isAlreadyProvisionedError, readableReason } from './alreadyOnChain';
+import type { MidnightConnectedApi, PreprodSession, WalletProvingProvider } from './wallet';
 
 type PrivateState = Record<string, never>;
 
@@ -135,21 +137,64 @@ function bytesToHex(bytes: Uint8Array): string {
   return out;
 }
 
-interface LedgerContext {
-  contractState: ContractState;
+export interface LedgerContext {
+  contractState: OnChainContractState;
   zswapChainState: ZswapChainState;
   ledgerParameters: LedgerParameters;
-  coinPublicKey: Uint8Array;
-  walletEncryptionPublicKey: Uint8Array;
+  /** Bech32m Zswap coin public key from the connected wallet (SDK expects a string). */
+  coinPublicKey: string;
+  /** Bech32m encryption public key from the connected wallet (SDK expects a string). */
+  walletEncryptionPublicKey: string;
+  /** Indexer-confirmed hash of the action this context was built from. */
+  actionHash: string;
+  /** Block height the context's contract state / zswap state were read at. */
+  blockHeight: number;
+}
+
+export type LedgerWalletKeys = Pick<LedgerContext, 'coinPublicKey' | 'walletEncryptionPublicKey'>;
+
+export interface LedgerContextOptions {
+  /**
+   * Reuse an already-indexed action (e.g. the one a just-confirmed submit
+   * returned) instead of fetching the latest action again. The block's ledger
+   * parameters are still fetched for that action's block height, so a stale
+   * context is never reused across a block boundary.
+   */
+  fromAction?: ContractAction;
+  /** Reuse the wallet keys already pulled this session instead of calling the wallet. */
+  walletKeys?: LedgerWalletKeys;
+}
+
+/**
+ * Pulls the wallet's Zswap keys straight from the DApp Connector, untouched.
+ *
+ * This is the boundary that previously broke the on-chain flow: the wallet
+ * returns the keys as Bech32m string addresses, but the code decoded them to
+ * raw bytes here and then fed a `Uint8Array` to the Midnight SDK whose
+ * contract runtime requires a Hex/Bech32m string (`coinPublic`). Pass the
+ * strings through byte-identically and let the tx-building boundary convert
+ * the coin public key to hex (`parseCoinPublicKeyToHex`) when needed.
+ */
+export function walletShieldedKeys(addresses: {
+  shieldedCoinPublicKey: string;
+  shieldedEncryptionPublicKey: string;
+}): Pick<LedgerContext, 'coinPublicKey' | 'walletEncryptionPublicKey'> {
+  return {
+    coinPublicKey: addresses.shieldedCoinPublicKey,
+    walletEncryptionPublicKey: addresses.shieldedEncryptionPublicKey,
+  };
 }
 
 /** Reads the real ledger context for the deployed contract from the indexer. */
-export async function fetchLedgerContext(session?: PreprodSession): Promise<LedgerContext> {
+export async function fetchLedgerContext(
+  session?: PreprodSession,
+  options: LedgerContextOptions = {},
+): Promise<LedgerContext> {
   assertPreprod(configuredContractAddress());
   const endpoint = PREPROD_ENDPOINTS.indexerUrl;
   const address = configuredContractAddress();
 
-  const latest = await fetchLatestContractAction(endpoint, address);
+  const latest = options.fromAction ?? (await fetchLatestContractAction(endpoint, address));
   if (!latest) {
     throw new Error('The deployed contract has no indexed actions yet; nothing to call against.');
   }
@@ -159,9 +204,9 @@ export async function fetchLedgerContext(session?: PreprodSession): Promise<Ledg
   }
   const zswapHex = latest.zswapState;
 
-  let contractState: ContractState;
+  let contractState: OnChainContractState;
   try {
-    contractState = ContractState.deserialize(hexToBytes(stateHex));
+    contractState = OnChainContractState.deserialize(hexToBytes(stateHex));
   } catch (error) {
     throw new Error(
       `Failed to decode on-chain contract state: ${error instanceof Error ? error.message : String(error)}`,
@@ -192,23 +237,32 @@ export async function fetchLedgerContext(session?: PreprodSession): Promise<Ledg
     );
   }
 
-  let coinPublicKey = new Uint8Array(32);
-  let walletEncryptionPublicKey = new Uint8Array(32);
-  if (session) {
+  let coinPublicKey = '';
+  let walletEncryptionPublicKey = '';
+  if (options.walletKeys) {
+    ({ coinPublicKey, walletEncryptionPublicKey } = options.walletKeys);
+  } else if (session) {
     const addresses = await session.api.getShieldedAddresses?.();
     if (!addresses) {
       throw new Error('Connected wallet is missing getShieldedAddresses(); cannot fund a call.');
     }
-    const networkId = session.configuration.networkId as never;
-    coinPublicKey = Uint8Array.from(
-      ShieldedCoinPublicKey.codec.decode(networkId, MidnightBech32m.parse(addresses.shieldedCoinPublicKey)).data,
-    );
-    walletEncryptionPublicKey = Uint8Array.from(
-      ShieldedEncryptionPublicKey.codec.decode(networkId, MidnightBech32m.parse(addresses.shieldedEncryptionPublicKey)).data,
-    );
+    // The DApp Connector returns the Zswap keys as Bech32m address STRINGS, and
+    // the Midnight SDK's contract runtime/config layer validates them as such
+    // (`coinPublic` must be a Hex or Bech32m string). Pass them through without
+    // re-encoding — decoding them to raw bytes here was what made
+    // `buildUnprovenCallTx` feed a Uint8Array where a string was required.
+    ({ coinPublicKey, walletEncryptionPublicKey } = walletShieldedKeys(addresses));
   }
 
-  return { contractState, zswapChainState, ledgerParameters, coinPublicKey, walletEncryptionPublicKey };
+  return {
+    contractState,
+    zswapChainState,
+    ledgerParameters,
+    coinPublicKey,
+    walletEncryptionPublicKey,
+    actionHash: latest.transaction.hash,
+    blockHeight: latest.transaction.block.height,
+  };
 }
 
 function buildCompiledContract(values: WitnessValues) {
@@ -246,6 +300,11 @@ export async function buildUnprovenCallTx(
   context: LedgerContext,
 ): Promise<{ unprovenTx: unknown; serializedUnprovenTx: string; circuitId: string }> {
   const { circuitId, args, values } = invocation;
+
+  // The contract runtime requires a configured network id before it will build
+  // an unproven call tx (it resolves key encodings via `getNetworkId`).
+  setNetworkId(configuredNetwork());
+
   const cc = buildCompiledContract({
     issuerSigningKey: values.issuerSigningKey ?? null,
     credentialPayload: values.credentialPayload ?? null,
@@ -262,7 +321,11 @@ export async function buildUnprovenCallTx(
   ) as never;
   const options = {
     ...(baseOptions as Record<string, unknown> | object | null),
-    coinPublicKey: context.coinPublicKey,
+    // `createUnprovenCallTxFromInitialStates` executes the circuit with the
+    // coin public key as a plain hex source (`CoinPublicKey.asHex` is only a
+    // brand, not a Bech32m→hex conversion), so a Bech32m key from the wallet
+    // dies with "Invalid hex-digit 'm' …". Convert to hex at this boundary.
+    coinPublicKey: parseCoinPublicKeyToHex(context.coinPublicKey, getNetworkId()),
     initialContractState: context.contractState,
     initialZswapChainState: context.zswapChainState,
     ledgerParameters: context.ledgerParameters,
@@ -287,6 +350,29 @@ export async function buildUnprovenCallTx(
   return { unprovenTx, serializedUnprovenTx: bytesToHex(serialized), circuitId };
 }
 
+export type ProvisionOutcome = 'pending' | 'already-on-chain';
+
+/**
+ * Determines whether `invocation`'s on-chain effect already exists by EXECUTING
+ * the circuit against the current real state (no proof, no balance, no
+ * submit). This is pure observation: the contract itself rejecting a duplicate
+ * ("Issuer already registered" / "Credential already anchored") is real
+ * on-chain evidence the step is already done. Any other circuit error is a
+ * genuine failure and is rethrown unchanged.
+ */
+export async function classifyInvocation(
+  invocation: CallInvocation,
+  context: LedgerContext,
+): Promise<ProvisionOutcome> {
+  try {
+    await buildUnprovenCallTx(invocation, context);
+    return 'pending';
+  } catch (error) {
+    if (isAlreadyProvisionedError(error)) return 'already-on-chain';
+    throw error;
+  }
+}
+
 async function requireProvingProvider(api: MidnightConnectedApi) {
   const getProvingProvider = api.getProvingProvider;
   if (typeof getProvingProvider !== 'function') {
@@ -297,19 +383,76 @@ async function requireProvingProvider(api: MidnightConnectedApi) {
   return getProvingProvider.call(api, walletKeyMaterialProvider());
 }
 
+/**
+ * Creates the wallet proving provider once per session. The provider binds ZK
+ * artifacts and key access but is stateless per `proveTx` request, so a run that
+ * submits several calls (5 for provisioning) reuses the SAME provider instead of
+ * re-loading artifacts before every proof.
+ */
+export function prepareProvingProvider(api: MidnightConnectedApi): Promise<WalletProvingProvider> {
+  return requireProvingProvider(api);
+}
+
+export interface SubmitOptions {
+  /** Reuse a previously fetched ledger context (state/zswap/params/wallet keys). */
+  context?: LedgerContext;
+  /** Reuse the session's wallet proving provider instead of re-binding it. */
+  provingProvider?: WalletProvingProvider;
+}
+
 export interface SubmittedCall {
   txHash: string;
   entryPoint: string;
   confirmedOnChain: boolean;
+  /** The indexer-confirmed action that finalised this call (fresh state source). */
+  action: ContractCallAction;
+}
+
+type SubmitStage =
+  | 'fetchLedgerContext'
+  | 'buildUnprovenCallTx'
+  | 'proveTx'
+  | 'balanceUnsealedTransaction'
+  | 'submitTransaction'
+  | 'confirmOnChain';
+
+function formatDuration(ms: number): string {
+  return ms >= 1000 ? `${(ms / 1000).toFixed(2)}s` : `${Math.round(ms)}ms`;
+}
+
+/**
+ * Runs one submit stage with structured logging and rethrows a readable,
+ * prefixed error so the UI can show `Stage:` / `Reason:` without guessing.
+ * Logs only stage names, durations and error messages — never private witnesses.
+ */
+async function runSubmitStage<T>(stage: SubmitStage, work: () => Promise<T>): Promise<T> {
+  const startedAt = performance.now();
+  try {
+    const result = await work();
+    console.info(`[VeriShield submit] stage ok: ${stage} (${formatDuration(performance.now() - startedAt)})`);
+    return result;
+  } catch (error) {
+    const reason = readableReason(error);
+    console.error(
+      `[VeriShield submit] stage FAILED: ${stage} (${formatDuration(performance.now() - startedAt)}) — reason: ${reason}`,
+    );
+    throw new Error(`Stage: ${stage} — ${reason}`, { cause: error });
+  }
 }
 
 /**
  * Real submit: prove with the wallet, balance, broadcast, then confirm the
  * resulting hash on the indexer. Returns only indexer-confirmed hashes.
+ *
+ * `options.context` / `options.provingProvider` let a provisioning run reuse
+ * one ledger context (state fetched once) and one wallet proving provider
+ * across all of its sequential calls — the dominant per-call overhead —
+ * instead of re-fetching and re-loading before every single call.
  */
 export async function submitOnChainCall(
   session: PreprodSession,
   invocation: CallInvocation,
+  options: SubmitOptions = {},
 ): Promise<SubmittedCall> {
   assertPreprod(configuredContractAddress());
   for (const method of ['balanceUnsealedTransaction', 'submitTransaction'] as const) {
@@ -320,23 +463,41 @@ export async function submitOnChainCall(
     }
   }
 
-  const context = await fetchLedgerContext(session);
-  const unproven = await buildUnprovenCallTx(invocation, context);
+  const context = options.context
+    ? options.context
+    : await runSubmitStage('fetchLedgerContext', () => fetchLedgerContext(session));
+  const unproven = await runSubmitStage('buildUnprovenCallTx', () => buildUnprovenCallTx(invocation, context));
 
-  const provingProvider = await requireProvingProvider(session.api);
-  const proofProvider = createProofProvider(provingProvider as never);
-  const proven = (await proofProvider.proveTx(
-    unproven.unprovenTx as never,
-  )) as unknown as { serialize: () => Uint8Array };
+  const proven = await runSubmitStage(
+    'proveTx',
+    async () => {
+      const provider =
+        options.provingProvider ?? (await requireProvingProvider(session.api));
+      const proofProvider = createProofProvider(provider as never);
+      return proofProvider.proveTx(unproven.unprovenTx as never) as unknown as {
+        serialize: () => Uint8Array;
+      };
+    },
+  );
 
-  const balanced = await session.api.balanceUnsealedTransaction?.(bytesToHex(proven.serialize()));
-  if (!balanced?.tx) {
-    throw new Error('Wallet did not return a balanced transaction to submit.');
-  }
-  await session.api.submitTransaction?.(balanced.tx);
+  const balanced = await runSubmitStage('balanceUnsealedTransaction', async () => {
+    const result = await session.api.balanceUnsealedTransaction?.(bytesToHex(proven.serialize()));
+    if (!result?.tx) {
+      throw new Error('Wallet did not return a balanced transaction to submit.');
+    }
+    return result;
+  });
+  await runSubmitStage('submitTransaction', async () => {
+    await session.api.submitTransaction?.(balanced.tx);
+  });
 
-  const confirmed = await confirmCallOnChain(invocation.circuitId);
-  return { txHash: confirmed.txHash, entryPoint: confirmed.entryPoint, confirmedOnChain: true };
+  const confirmed = await runSubmitStage('confirmOnChain', () => confirmCallOnChain(invocation.circuitId));
+  return {
+    txHash: confirmed.txHash,
+    entryPoint: confirmed.entryPoint,
+    confirmedOnChain: true,
+    action: confirmed.action,
+  };
 }
 
 function sleep(ms: number): Promise<void> {
@@ -346,6 +507,8 @@ function sleep(ms: number): Promise<void> {
 interface ConfirmedCall {
   txHash: string;
   entryPoint: string;
+  /** The indexer-confirmed action itself — its state/zswap feed the NEXT call. */
+  action: ContractCallAction;
 }
 
 /**
@@ -372,7 +535,11 @@ async function confirmCallOnChain(circuitId: ProvableCircuitOfContract): Promise
     // Not advanced past our snapshot yet; keep waiting.
     if (latest.transaction.hash === beforeHash) continue;
     if (latest.kind === 'ContractCall' && latest.entryPoint === circuitId) {
-      return { txHash: latest.transaction.hash, entryPoint: latest.entryPoint };
+      return {
+        txHash: latest.transaction.hash,
+        entryPoint: latest.entryPoint,
+        action: latest as ContractCallAction,
+      };
     }
     throw new Error(
       `A different on-chain action appeared (${latest.kind}${

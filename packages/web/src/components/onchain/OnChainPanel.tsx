@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { CopyableHash } from '@/components/ui/CopyableHash';
 import { useNetworkStore } from '@/stores/networkStore';
-import { useMidnight } from '@/hooks/useMidnight';
+import { useWallet } from '@/components/wallet/WalletProvider';
 import {
   DEPLOY_BLOCK,
   DEPLOYED_CONTRACT_ADDRESS,
@@ -19,7 +19,7 @@ import {
  */
 export function OnChainPanel() {
   const { network, snapshot, error, connect } = useNetworkStore();
-  const { session, networkMismatch, phase } = useMidnight();
+  const { session, networkMismatch, status: walletStatus } = useWallet();
 
   useEffect(() => {
     if (!snapshot && network.status !== 'connecting') {
@@ -112,12 +112,12 @@ export function OnChainPanel() {
 
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 text-xs text-slate-500">
-            {phase === 'connected' && session ? (
+            {walletStatus === 'connected' && session ? (
               <span className="flex items-center gap-1.5 text-emerald-300">
                 <ShieldCheck className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 Wallet ready — real call submissions can be constructed for this contract.
               </span>
-            ) : phase === 'connected' && networkMismatch ? (
+            ) : walletStatus === 'connected' && networkMismatch ? (
               <span className="flex items-center gap-1.5 text-amber-300">
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
                 Wallet is on another network; on-chain calls stay disabled until it matches Preprod.

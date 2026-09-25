@@ -49,6 +49,7 @@ import {
   toUnixSeconds,
   utf8,
 } from './encoding.js';
+import { deserializeCredential, type SerializedCredential } from './serialization.js';
 
 const FOUR_YEARS_SECONDS = 4 * 365.25 * 24 * 60 * 60;
 
@@ -199,6 +200,61 @@ export function verifyCredentialSignature(
     credential.commitment,
     credential.signature,
   );
+}
+
+export interface CredentialIntegrityCheck {
+  ok: boolean;
+  commitmentOk: boolean;
+  leafOk: boolean;
+  idOk: boolean;
+  error?: string;
+}
+
+/**
+ * Honest integrity gate for a delivered credential package, before it is
+ * accepted into a holder vault. Recomputes the ON-CHAIN commitment and
+ * issuance leaf from the package's own payload + salt using the SAME
+ * pure-circuit construction `buildCredential` used at issuance, then checks
+ * they match the digests the package ships. A package whose recomputed
+ * commitment does not match is corrupted or tampered with and must be
+ * rejected. (The recomputed commitment is deterministic, so a re-exported
+ * package always re-checks to the same result.)
+ */
+export function verifyCredentialIntegrity(
+  credential: BuiltCredential | SerializedCredential,
+): CredentialIntegrityCheck {
+  const serialized = 'version' in credential ? (credential as SerializedCredential) : null;
+  const built = serialized ? deserializeCredential(serialized) : (credential as BuiltCredential);
+
+  const commitment = commitmentOf(built.payload, built.salt);
+  const leaf = asBytes32(pureCircuits.leafFromCommitment(fromHex(built.disclosure.issuerId), commitment), 'leaf');
+  const commitmentHex = toHex(commitment);
+  const leafHex = toHex(leaf);
+
+  // Disclosure digests are authoritative; the package's own top-level digests
+  // must agree with them too (they are redundant in the wire format).
+  let commitmentOk = commitmentHex === built.disclosure.commitment;
+  let leafOk = leafHex === built.disclosure.leaf;
+  if (serialized) {
+    commitmentOk = commitmentOk && serialized.commitment === built.disclosure.commitment;
+    leafOk = leafOk && serialized.leaf === built.disclosure.leaf;
+  }
+  const idOk = built.disclosure.id === `cred_${commitmentHex.slice(0, 16)}`;
+
+  if (commitmentOk && leafOk && idOk) {
+    return { ok: true, commitmentOk, leafOk, idOk };
+  }
+  const failures: string[] = [];
+  if (!commitmentOk) failures.push('commitment');
+  if (!leafOk) failures.push('leaf');
+  if (!idOk) failures.push('credential id');
+  return {
+    ok: false,
+    commitmentOk,
+    leafOk,
+    idOk,
+    error: `Recomputed ${failures.join(', ')} does not match the package disclosure.`,
+  };
 }
 
 /** Human-readable projection of a built credential (no PII beyond the label). */

@@ -1,11 +1,26 @@
 /**
- * React binding for the Midnight 1AM wallet.
+ * Single instance of midnight-wallet connection logic — consumed by
+ * `WalletProvider`, which owns it ONCE for the whole application.
  *
  * `connect()` must be called directly from a user gesture: wallets open an
  * authorization pop-up and browsers block it if the call is detached from the
  * click. This hook therefore invokes `initialApi.connect(networkId)`
  * synchronously (no preceding `await`) and handles the returned promise
  * afterwards.
+ *
+ * Status model:
+ *  - `initializing`: wallet discovery is still running (page load only).
+ *  - `disconnected`: no live session. After a refresh this is the NEUTRAL
+ *    state — the DApp Connector `InitialAPI` offers no non-interactive
+ *    "restore existing authorization" method, so nothing is reconnected and
+ *    no approval popup is triggered on load. The user takes one explicit
+ *    "Reconnect 1AM" action.
+ *  - `connecting`: an explicit connection attempt is in flight.
+ *  - `connected`: a live `PreprodSession` (or an account readout) exists.
+ *  - `reconnecting`: reserved for future silent-restore attempts; the current
+ *    connector surface never reaches this state.
+ *  - `error`: only surfaced after an EXPLICIT user action (connect/disconnect/
+ *    refresh) fails — never on page load.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -23,10 +38,16 @@ import {
   type WalletInfo,
 } from '@/lib/midnight/wallet';
 
-export type WalletPhase = 'unavailable' | 'detected' | 'connecting' | 'connected' | 'error';
+export type WalletStatus =
+  | 'initializing'
+  | 'disconnected'
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+  | 'error';
 
 export interface UseMidnightResult {
-  phase: WalletPhase;
+  status: WalletStatus;
   wallets: WalletInfo[];
   wallet: WalletInfo | null;
   networkId: string;
@@ -58,7 +79,7 @@ export function useMidnight(): UseMidnightResult {
   const namedWalletRef = useRef<NamedWallet | null>(null);
   const mountedRef = useRef(true);
 
-  const [phase, setPhase] = useState<WalletPhase>('detected');
+  const [status, setStatus] = useState<WalletStatus>('initializing');
   const [wallets, setWallets] = useState<WalletInfo[]>([]);
   const [wallet, setWallet] = useState<WalletInfo | null>(null);
   const [networkMismatch, setNetworkMismatch] = useState(false);
@@ -76,16 +97,21 @@ export function useMidnight(): UseMidnightResult {
     const found = discoverWallets();
     if (!mountedRef.current) return;
     setWallets(found.map((w) => w.info));
-    setPhase((current) => {
+    setStatus((current) => {
+      // Only a live flow keeps its status; an idle (or freshly loaded) app
+      // settles into the neutral `disconnected` state — never `error`.
       if (current === 'connected' || current === 'connecting' || current === 'error') return current;
-      return found.length > 0 ? 'detected' : 'unavailable';
+      return 'disconnected';
     });
   }, []);
 
   useEffect(() => {
     mountedRef.current = true;
+    // Single discovery pass lives at the provider level. Extensions often
+    // inject after first paint, so re-scan on focus and shortly after load.
+    // Every listener/timer here is torn down on unmount; no portal mounts may
+    // register their own copies.
     scan();
-    // Extensions often inject after first paint; re-scan on focus and shortly after load.
     const timers = [200, 800, 2000].map((ms) => window.setTimeout(scan, ms));
     const onFocus = () => scan();
     window.addEventListener('focus', onFocus);
@@ -100,7 +126,26 @@ export function useMidnight(): UseMidnightResult {
     const api = apiRef.current;
     if (!api) return;
     try {
-      const status = await api.getConnectionStatus?.();
+      const connection = await api.getConnectionStatus?.();
+      // The wallet explicitly reports the live session is gone: fall back to
+      // the neutral disconnected state so the UI never shows a stale
+      // "connected" readout; the single Reconnect 1AM action restores it.
+      if (connection?.status === 'disconnected') {
+        apiRef.current = null;
+        namedWalletRef.current = null;
+        setStatus('disconnected');
+        setSession(null);
+        setAddress(null);
+        setShieldedAddress(null);
+        setShieldedCoinPublicKey(null);
+        setDustAddress(null);
+        setShieldedBalances([]);
+        setUnshieldedBalances([]);
+        setDustBalance(null);
+        setNetworkMismatch(false);
+        setError(null);
+        return;
+      }
       const unshielded = await api.getUnshieldedAddress?.();
       const shielded = await api.getShieldedAddresses?.();
       const dust = await api.getDustAddress?.();
@@ -109,7 +154,7 @@ export function useMidnight(): UseMidnightResult {
       const dustBal = await api.getDustBalance?.();
       if (!mountedRef.current) return;
 
-      const reportedNetwork = status?.networkId;
+      const reportedNetwork = connection?.networkId;
       setNetworkMismatch(Boolean(reportedNetwork && reportedNetwork !== networkId));
       setAddress(unshielded?.unshieldedAddress ?? null);
       setShieldedAddress(shielded?.shieldedAddress ?? null);
@@ -118,26 +163,26 @@ export function useMidnight(): UseMidnightResult {
       setShieldedBalances(toTokenBalances(shieldedTokenBalances));
       setUnshieldedBalances(toTokenBalances(unshieldedTokenBalances));
       setDustBalance(dustBal?.balance ?? null);
-      setPhase('connected');
+      setStatus('connected');
     } catch (hydrateError) {
       if (!mountedRef.current) return;
       setError(hydrateError instanceof Error ? hydrateError.message : String(hydrateError));
-      setPhase('error');
+      setStatus('error');
     }
   }, [networkId]);
 
   const connect = useCallback(() => {
     const selected = selectWallet();
     if (!selected) {
-      setPhase('unavailable');
+      setStatus('disconnected');
       setWallet(null);
-      setError('1AM wallet not detected. Install the extension to connect.');
+      setError('1AM wallet not detected. Install the extension, reload, then connect.');
       return;
     }
 
     // Call connect synchronously so the wallet pop-up stays within the user gesture.
     setWallet(selected.info);
-    setPhase('connecting');
+    setStatus('connecting');
     setError(null);
     setNetworkMismatch(false);
 
@@ -149,7 +194,7 @@ export function useMidnight(): UseMidnightResult {
       pending = selected.api.connect(networkId);
     } catch (syncError) {
       setError(syncError instanceof Error ? syncError.message : String(syncError));
-      setPhase('error');
+      setStatus('error');
       return;
     }
 
@@ -187,7 +232,7 @@ export function useMidnight(): UseMidnightResult {
               ? connectError.message
               : String(connectError),
         );
-        setPhase('error');
+        setStatus('error');
       });
   }, [hydrate, networkId]);
 
@@ -202,7 +247,7 @@ export function useMidnight(): UseMidnightResult {
         // Wallets are not required to implement disconnect; ignore failures.
       }
     }
-    setPhase(wallets.length > 0 ? 'detected' : 'unavailable');
+    setStatus('disconnected');
     setSession(null);
     setAddress(null);
     setShieldedAddress(null);
@@ -213,14 +258,14 @@ export function useMidnight(): UseMidnightResult {
     setDustBalance(null);
     setNetworkMismatch(false);
     setError(null);
-  }, [wallets.length]);
+  }, []);
 
   const refresh = useCallback(() => hydrate(), [hydrate]);
 
   const handleOpenInstall = useCallback(() => openInstallPage(), []);
 
   return {
-    phase,
+    status,
     wallets,
     wallet,
     networkId,
