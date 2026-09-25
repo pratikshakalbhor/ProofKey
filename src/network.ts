@@ -45,8 +45,8 @@ const DEFAULTS: Record<NetworkType, Omit<NetworkConfig, 'type'>> = {
     label: 'Local Devnet',
     nodeUrl: 'http://localhost:9944',
     nodeWsUrl: 'ws://localhost:9944',
-    indexerUrl: 'http://localhost:8088/api/v4/graphql',
-    indexerWsUrl: 'ws://localhost:8088/api/v4/graphql/ws',
+    indexerUrl: 'http://localhost:8089/api/v4/graphql',
+    indexerWsUrl: 'ws://localhost:8089/api/v4/graphql/ws',
     proofServerUrl: 'http://localhost:6300',
   },
   preprod: {
@@ -97,10 +97,15 @@ export function getNetworkConfig(env: EnvLike = process.env): NetworkConfig {
 
 /**
  * Midnight protocol hard-fork boundary (ledger v8 → v9). Nodes report their
- * `specVersion` via `state_getRuntimeVersion`. Preprod/Preview are still
- * pre-fork (`specVersion 1000000`); a v9-compiled contract cannot be deployed
- * there until the fork activates (`specVersion >= 2000000`). The hard fork was
- * only staged (not enacted) on 2026-08-21 — see README "Known Simulations".
+ * `specVersion` via `state_getRuntimeVersion`.
+ *
+ * This is the preprod-v8-compat branch: the compiled contract targets ledger
+ * v8 (`ledger-8.0.2`, Compact 0.31.1), which is exactly what preprod runs
+ * today (`specVersion 1000300`, verified live via `state_getRuntimeVersion` on
+ * 2026-09-22). The boundary therefore marks the point at
+ * which the CURRENT branch's contract becomes NON-deployable: once a network
+ * reports `specVersion >= 2000000` it has forked to v9 and this v8 contract
+ * no longer applies (the v9 in-circuit variant lives on the `main` branch).
  */
 export const LEDGER9_FORK_SPEC_VERSION = 2_000_000;
 
@@ -128,8 +133,8 @@ export async function fetchSpecVersion(nodeUrl: string): Promise<number | undefi
  */
 export function midnightProvidersEnv(config: NetworkConfig): Record<string, string> {
   return {
-    walletNetworkId: 'undeployed',
-    networkId: 'undeployed',
+    walletNetworkId: config.networkId,
+    networkId: config.networkId,
     indexer: config.indexerUrl,
     indexerWS: config.indexerWsUrl,
     node: config.nodeUrl,

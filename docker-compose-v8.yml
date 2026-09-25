@@ -1,0 +1,107 @@
+# VeriShield current-era (ledger-8) local Midnight devnet — the stack THIS
+# branch (preprod-v8-compat) runs against: node 1.0.0 (spec_version 1_000_003),
+# indexer-standalone 4.3.3, proof-server 8.1.0 — matching the compiled contract
+# (Compact 0.31.1 / runtime 0.16.0 / ledger-8.0.2) and public Preprod's ledger-8
+# line. Image tags are pulled locally already.
+#
+# Shares the compose project name (`verishield-devnet`) with docker-compose.yml
+# (the ledger-9 stack) so the two files swap the same three services in place:
+#
+#   docker compose -f docker-compose-v8.yml up -d     # v8 devnet (this branch)
+#   docker compose up -d                              # swap back to v9 (main)
+#
+# The proof server is the only service a PREPROD broadcast needs locally
+# (public Preprod endpoints supply the node + indexer). It must match the
+# network's ledger era: 8.1.0 proves ledger-8 proofs; 9.0.0-rc.* cannot.
+#
+# Endpoints (identical to docker-compose.yml):
+#   node          http://localhost:9944
+#   indexer       http://localhost:8089/api/v4/graphql
+#   indexer (ws)  ws://localhost:8089/api/v4/graphql/ws
+#   proof server  http://localhost:6300
+#
+# Era parity matters: the wallet SDK pins ledger-v8 ^8.1.2 and local proof
+# proving uses proof-server 8.1.0, i.e. the ledger-8.1.0 circuit line. The
+# node must therefore run ledger 8.1 too (spec_version 1_000_300, node tag
+# 1.0.300) — a node 1.0.0 (ledger 8.0.x) PREVERIFIES locally-built dust-spend
+# proofs with ledger-8.0 verification keys and rejects the 8.1-built proof as
+# Malformed(InvalidDustSpendProof). node 1.0.300 is the same ledger era as
+# public Preprod (specVersion 1_000_300), making the local stack a faithful
+# dress rehearsal of the real broadcast.
+#
+# No service stores chain state on a volume, so `down` already yields a fresh
+# chain on next start. The only named volume is the proof server's shared
+# SRS/ZK parameter cache (same project + volume key as docker-compose.yml).
+
+name: verishield-devnet
+
+services:
+  node:
+    image: midnightntwrk/midnight-node:1.0.300
+    container_name: midnight-node
+    restart: unless-stopped
+    ports:
+      - "9944:9944"
+    environment:
+      CFG_PRESET: "dev"
+      SIDECHAIN_BLOCK_BENEFICIARY: "04bcf7ad3be7a5c790460be82a713af570f22e0f801f6659ab8e84a52be6969e"
+    # Gate health on block #1 existing (not just /health): the indexer's
+    # spo-indexer resolves block #1 on startup and dies if it catches the node
+    # still at genesis.
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - 'curl -sf -X POST -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"chain_getBlockHash\",\"params\":[1]}" http://localhost:9944 | grep -q "\"result\":\"0x"'
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 15s
+
+  # The proof server handles all private witness data locally and never opens
+  # outbound connections. It must match the contract's ledger version (8).
+  #
+  # No healthcheck: the upstream image is a single static binary with no shell
+  # or `curl`/`wget` on PATH. The deploy tool probes http://…:6300/version
+  # itself before submitting (`connectDeployWallet`), so readiness is still
+  # checked exactly where it matters.
+  proof-server:
+    image: midnightntwrk/proof-server:8.1.0
+    container_name: midnight-proof-server
+    restart: unless-stopped
+    ports:
+      - "6300:6300"
+    # Shared SRS/ZK parameter cache (~hundreds of MB, downloaded once from
+    # https://srs.midnight.network on first use); preserved across `down`.
+    volumes:
+      - verishield-proof-cache:/.cache/midnight
+
+  indexer:
+    image: midnightntwrk/indexer-standalone:4.3.7
+    container_name: midnight-indexer
+    restart: always
+    depends_on:
+      node:
+        condition: service_healthy
+    ports:
+      - "8089:8088"
+    environment:
+      RUST_LOG: "indexer=info,chain_indexer=info,indexer_api=info,wallet_indexer=info,indexer_common=info,fastrace_opentelemetry=off,info"
+      APP__INFRA__NODE__URL: "ws://node:9944"
+      APP__APPLICATION__NETWORK_ID: "undeployed"
+      APP__INFRA__STORAGE__PASSWORD: "indexer"
+      APP__INFRA__PUB_SUB__PASSWORD: "indexer"
+      APP__INFRA__LEDGER_STATE_STORAGE__PASSWORD: "indexer"
+      APP__INFRA__SECRET: "303132333435363738393031323334353637383930313233343536373839303132"
+      APP__INFRA__SPO_NODE__URL: "ws://node:9944"
+      APP__INFRA__SPO_NODE__BLOCKFROST_ID: "dummy-not-using-spo"
+      APP__INFRA__SPO_NODE__RECONNECT_MAX_DELAY: "24h"
+    healthcheck:
+      test: ["CMD-SHELL", "cat /var/run/indexer-standalone/running"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  # Proof-server SRS/ZK parameter cache (see proof-server service comment).
+  verishield-proof-cache:
